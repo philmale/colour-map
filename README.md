@@ -14,7 +14,7 @@ Copy the colour_map.jinja file into your config/custom_templates directory in Ho
 # To play with
 In Developers Tools->Template try pasting this:
 ```
-{%- from 'colour_map.jinja' import random_colour, lookup_colour, closest_ha_colour -%}
+{%- from 'colour_map.jinja' import random_colour, lookup_colour, close_colours -%}
 {{ lookup_colour() }}
 {{ lookup_colour("Red", "hex") }}
 {{ lookup_colour("Sky Blue", "rgb") }}
@@ -26,7 +26,8 @@ In Developers Tools->Template try pasting this:
 {{ lookup_colour(aColour, "hsl") }}
 {{ lookup_colour(aColour, "hs") }}
 {{ lookup_colour(aColour, "rgb") }}
-{{ closest_ha_colour(aColour) }}
+{{ close_colours(aColour,15).split(',') }}
+{{ close_colours('Energy Yellow',15).split(',') | random }}
 
 ```
 
