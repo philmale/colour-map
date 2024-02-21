@@ -1,7 +1,7 @@
 {#
 from 'colour_map.jinja' import 
   random_colour, name_to_tag, tag_to_name, lookup_colour, find_colour,
-  hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2xyb, closest_ha_colour
+  hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2xyb, closest_ha_colour, close_colours
 #}
 
 {# Random colour #}
@@ -97,6 +97,29 @@ from 'colour_map.jinja' import
     {%- endif -%}
   {%- endfor -%}
   {{ nc.id }}
+{%- endmacro -%}
+
+{%- macro _distance_3d_hex(colour1, colour2, map = "lamp") -%}
+  {%- set (r1,g1,b1) = hex2rgb(colour1).split(',') -%}
+  {%- set (r2,g2,b2) = hex2rgb(colour2).split(',') -%}
+  {{ ((sqrt(((r1|int-r2|int)*(r1|int-r2|int)) + ((g1|int-g2|int)*(g1|int-g2|int)) + ((b1|int-b2|int)*(b1|int-b2|int)))) * 10000) | int }}
+{%- endmacro -%}
+
+{%- macro close_colours(id = random_colour(), n = 3, map = "lamp") -%}
+  {%- if map == "ha" -%}
+    {%- set search = ha_colours -%}
+  {%- else -%}
+    {%- set search = lamp_colours -%}
+  {%- endif -%}
+  {%- set target_hex = lookup_colour(id, 'hex', map) -%}
+  {%- set nc = namespace(result=[], dist={}) -%}
+  {%- for i in search.keys() -%}
+    {%- set nc.dist = dict(nc.dist, **{_distance_3d_hex(target_hex, lookup_colour(i, 'hex', map)):i}) -%}
+  {%- endfor -%}   
+  {%- for c in (nc.dist.keys()|sort)[1:n+1] -%}
+    {%- set nc.result = nc.result + [nc.dist[c]] -%}
+  {%- endfor -%}
+  {{ nc.result|join(',') }}
 {%- endmacro -%}
 
 {# Colour manipulation macros #}
