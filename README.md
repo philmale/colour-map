@@ -28,7 +28,7 @@ In Developers Tools->Template try pasting this:
 {{ lookup_colour(aColour, "rgb") }}
 {{ close_colours(aColour,15).split(',') }}
 {{ close_colours('Energy Yellow',15).split(',') | random }}
-
+{{ lookup_colour(close_colours('Energy Yellow',15).split(',') | random) }}
 ```
 
 # Examples
