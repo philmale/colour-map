@@ -4,7 +4,7 @@ I've put 1534 colour names in there, feel free to add or tweak, the colour names
 I use this for selecting light colours, and to mix things up a little so it's not always the same boring light colour there are some ways to find simialar colours and randomly select colours.
 
 # Install
-Copy the colour_map.jinja file into your config/custom_templates directory in Home Assistant, then anywhere you want to use one or more of the macros in some Jinja template code use:
+Copy the colour_map.jinja file into your config/custom_templates directory in Home Assistant and restart, then anywhere you want to use one or more of the macros in a Jinja template code use:
 
 ```
 {%- from 'colour_map.jinja' import
