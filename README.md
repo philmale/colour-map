@@ -1,6 +1,7 @@
 # colour-map
 A custom template for Home Assistant that maps colour names to RGB, HEX, HSL, HSV, HS, and XYB.
 I've put 1534 colour names in there, feel free to add or tweak, the colour names were picked to give something sensible when applied to a light bulb :)
+I use this for selecting light colours, and to mix things up a little so it's not always the same boring light colour there are some ways to find simialar colours and randomly select colours.
 
 # Install
 Copy the colour_map.jinja file into your config/custom_templates directory in Home Assistant, then anywhere you want to use one or more of the macros in some Jinja template code use:
