@@ -78,7 +78,7 @@ service: input_text.set_value
 data:
   value: >-
     {%- from 'colour_map.jinja' import random_colour -%}
-    {{ random_colour()|string }}
+    {{ random_colour() }}
 target:
   entity_id: input_text.some_text_helper
 ```
