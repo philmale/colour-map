@@ -1,18 +1,36 @@
 {#
 from 'colour_map.jinja' import 
-  random_colour, name_to_tag, tag_to_name, lookup_colour, find_colour,
-  hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2xyb, closest_ha_colour, close_colours
+  random_colour, random_colours,
+  name_to_tag, tag_to_name, textify_list,
+  lookup_colour, lookup_colours, find_colour,
+  hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2xyb
 #}
 
 {# Random colour #}
-{%- macro random_colour(exclude = [], map = "lamp") -%}
+{%- macro random_colour(map="lamp", exclude=[]) -%}
+  {{- random_colours(1, map, exclude) -}}
+{%- endmacro -%}
+
+{# Random colours #}
+{%- macro random_colours(n=1, map="lamp", exclude=[]) -%}
   {%- if map == "ha" -%}
     {%- set search = ha_colours -%}
+  {%- elif map == "f1" -%}
+    {%- set search = f1_colours -%}
   {%- else -%}
     {%- set search = lamp_colours -%}
   {%- endif -%}
-  {%- set exclude = exclude | map('regex_replace', '\W', '', false) -%}
-  {{ search.keys() | reject('in', exclude) | list | random }}
+  {%- if n|int(0) > (search.keys() | count) -%}
+    {%- set n = search.keys() | count -%}
+  {%- endif -%}
+  {%- set exclude = exclude | map('regex_replace', '\W', '', false) | list -%}
+  {%- set e = namespace(ex = exclude, ac = []) -%}
+  {%- for i in range(n) -%}
+    {%- set c = (search.keys() | reject('in', e.ex) | list | random) -%}
+    {%- set e.ex = e.ex + [c] -%}
+    {%- set e.ac = e.ac + [c] -%}
+  {%- endfor -%}
+  {{- e.ac | join(',') -}}
 {%- endmacro -%}
 
 {# Name crunching #}
@@ -24,12 +42,26 @@ from 'colour_map.jinja' import
   {{- tag | regex_replace('([a-z])([A-Z])', '\\1 \\2',false) -}}
 {%- endmacro -%}
 
+{%- macro textify_list(l=[]) -%}
+  {%- set r = l.split(',') -%}
+  {%- if r | count > 1 -%}
+    {{- (r[:-1] | join(', ')) + ' and ' + r[-1] | string -}}
+  {%- else -%}
+    {{- r[-1] -}}
+  {%- endif -%}
+{%- endmacro -%}
+
 {# Data table extraction #}
-{%- macro lookup_colour(id = random_colour(), attr="name", map = "lamp") -%}
+{%- macro lookup_colour(id=random_colour(), attr="name", map="lamp") -%}
   {%- if map == "ha" -%}
     {%- set search = ha_colours -%}
+  {%- elif map == "f1" -%}
+    {%- set search = f1_colours -%}
   {%- else -%}
     {%- set search = lamp_colours -%}
+  {%- endif -%}
+  {%- if id == "random" -%}
+    {%- set id = random_colour(map) -%}
   {%- endif -%}
   {%- set id = find_colour(id, map) -%}
   {%- if id|length -%}
@@ -51,75 +83,34 @@ from 'colour_map.jinja' import
   {%- endif -%}
 {%- endmacro -%}
 
-{%- macro find_colour(name = "Cyan", map = "lamp") -%}
+{%- macro lookup_colours(cs=random_colour(), attr="name", map="lamp") -%}
+  {%- set r = namespace(c=[]) -%}
+  {%- for i in cs.split(',') -%}
+    {%- set r.c = r.c + [lookup_colour(i, attr, map)] -%}
+  {%- endfor -%}
+  {{- r.c | join(',') -}}
+{%- endmacro -%}
+
+{%- macro find_colour(name=random_colour(), map="lamp") -%}
   {%- set tag = name_to_tag(name) -%}
   {%- if map == "ha" -%}
     {%- set search = ha_colours -%}
+  {%- elif map == "f1" -%}
+    {%- set search = f1_colours -%}
   {%- else -%}
     {%- set search = lamp_colours -%}
   {%- endif -%}
   {%- if search[tag] is defined -%}
     {{- tag -}}
   {%- else -%}
+    {%- set tag = tag|lower -%}
     {%- for i in search -%}
-      {%- if i|lower == tag|lower -%}
+      {%- if i|lower == tag -%}
         {{- i -}}
         {%- break -%}
       {%- endif -%}
     {%- endfor -%}
   {%- endif -%}
-{%- endmacro -%}
-
-{# Rough closest match #}
-{%- macro _reduce_colour(hex) -%}
-  {%- set (r,g,b) = hex2rgb(hex).split(',') -%}
-  {{ (2*r|int*r|int) + (4*g|int*g|int) + (3*b|int*b|int) }}
-{%- endmacro -%}
-
-{%- macro closest_ha_colour(id = random_colour(), map = "lamp") -%}
-  {%- if map == "ha" -%}
-    {%- set search = ha_colours -%}
-  {%- else -%}
-    {%- set search = lamp_colours -%}
-  {%- endif -%}
-  {%- set nc = namespace(id="", delta=9999999,
-    target=(_reduce_colour(lookup_colour(id, "hex", map)))|int(0)) -%}
-  {%- for i in ha_colours -%}
-    {%- set d = (nc.target - _reduce_colour(ha_colours[i])|int(0))|abs -%}
-    {%- if d == 0 -%}
-      {%- set nc.id = i -%}
-      {%- break -%}
-    {%- else -%}
-      {%- if d < nc.delta -%}
-        {%- set nc.id = i -%}
-        {%- set nc.delta = d -%}
-      {%- endif -%}
-    {%- endif -%}
-  {%- endfor -%}
-  {{ nc.id }}
-{%- endmacro -%}
-
-{%- macro _distance_3d_hex(colour1, colour2, map = "lamp") -%}
-  {%- set (r1,g1,b1) = hex2rgb(colour1).split(',') -%}
-  {%- set (r2,g2,b2) = hex2rgb(colour2).split(',') -%}
-  {{ ((sqrt(((r1|int-r2|int)*(r1|int-r2|int)) + ((g1|int-g2|int)*(g1|int-g2|int)) + ((b1|int-b2|int)*(b1|int-b2|int)))) * 10000) | int }}
-{%- endmacro -%}
-
-{%- macro close_colours(id = random_colour(), n = 3, map = "lamp") -%}
-  {%- if map == "ha" -%}
-    {%- set search = ha_colours -%}
-  {%- else -%}
-    {%- set search = lamp_colours -%}
-  {%- endif -%}
-  {%- set target_hex = lookup_colour(id, 'hex', map) -%}
-  {%- set nc = namespace(result=[], dist={}) -%}
-  {%- for i in search.keys() -%}
-    {%- set nc.dist = dict(nc.dist, **{_distance_3d_hex(target_hex, lookup_colour(i, 'hex', map)):i}) -%}
-  {%- endfor -%}   
-  {%- for c in (nc.dist.keys()|sort)[1:n+1] -%}
-    {%- set nc.result = nc.result + [nc.dist[c]] -%}
-  {%- endfor -%}
-  {{ nc.result|join(',') }}
 {%- endmacro -%}
 
 {# Colour manipulation macros #}
@@ -237,6 +228,27 @@ from 'colour_map.jinja' import
     + Br | string
   -}}
 {%- endmacro -%}
+
+{%- set f1_colours =
+{
+  "AlpinePink":"FF87BC",
+  "AstonMartinGreen":"00594F",
+  "AstonMartinPaleGreen":"229971",
+  "AzzurroDino":"1085FE",
+  "AzzurroLaPlata":"B4D0E8",
+  "BritishRacingGreen":"004225",
+  "FerrariRed":"FF2800",
+  "FerrariYellow":"FFEB00",
+  "HaasGrey":"B6BABD",
+  "KickSauberGreen":"52E252",
+  "MclarenOrange":"FF8000",
+  "MercedesBlue":"27F4D2",
+  "RedBullPaleBlue":"6692FF",
+  "RedBullBlue":"001344",
+  "ScuderiaRed":"A6051A",
+  "WilliamsBlue":"64C4FF"
+}
+-%}
 
 {%- set ha_colours =
 {
@@ -406,6 +418,7 @@ from 'colour_map.jinja' import
   "Almond":"EED9C4",
   "AlmondFrost":"907B71",
   "Alpine":"AF8F2C",
+  "AlpinePink":"FF87BC",
   "Aluminium":"A9ACB6",
   "Amaranth":"E52B50",
   "Amazon":"3B7A57",
@@ -441,6 +454,8 @@ from 'colour_map.jinja' import
   "Ash":"C6C3B5",
   "Asparagus":"7BA05B",
   "Asphalt":"130A06",
+  "AstonMartinGreen":"00594F",
+  "AstonMartinPaleGreen":"229971",
   "Astra":"FAEAB9",
   "Astral":"327DA0",
   "Astronaut":"283A77",
@@ -458,6 +473,8 @@ from 'colour_map.jinja' import
   "Aztec":"0D1C19",
   "Azure":"F0FFFF",
   "AzureRadiance":"007FFF",
+  "AzzurroDino":"1085FE",
+  "AzzurroLaPlata":"B4D0E8",
   "BabyBlue":"E0FFFF",
   "BahamaBlue":"026395",
   "Bahia":"A5CB0C",
@@ -559,6 +576,7 @@ from 'colour_map.jinja' import
   "BrightTurquoise":"08E8DE",
   "BrilliantRose":"F653A6",
   "BrinkPink":"FB607F",
+  "BritishRacingGreen":"004225",
   "Bronco":"ABA196",
   "Bronze":"3F2109",
   "BronzeOlive":"4E420C",
@@ -894,13 +912,14 @@ from 'colour_map.jinja' import
   "FairPink":"FFEFEC",
   "Falcon":"7F626D",
   "FallGreen":"ECEBBD",
-  "FaluRed":"801818",
   "Fedora":"796A78",
   "Feijoa":"9FDD8C",
   "Fern":"63B76C",
   "FernFrond":"657220",
   "FernGreen":"4F7942",
   "Ferra":"704F50",
+  "FerrariRed":"FF2800",
+  "FerrariYellow":"FFEB00",
   "Festival":"FBE96C",
   "Feta":"F0FCEA",
   "FieryOrange":"B35213",
@@ -1028,6 +1047,7 @@ from 'colour_map.jinja' import
   "Harlequin":"3FFF00",
   "Harp":"E6F2EA",
   "HarvestGold":"E0B974",
+  "HaasGrey":"B6BABD",
   "HavelockBlue":"5590D9",
   "HawaiianTan":"9D5616",
   "HawkesBlue":"D4E2FC",
@@ -1119,6 +1139,7 @@ from 'colour_map.jinja' import
   "Keppel":"3AB09E",
   "KeyLimePie":"BFC921",
   "Khaki":"F0E68C",
+  "KickSauberGreen":"52E252",
   "Kidnapper":"E1EAD4",
   "Kilamanjaro":"240C02",
   "Killarney":"3A6A47",
@@ -1201,6 +1222,7 @@ from 'colour_map.jinja' import
   "Lynch":"697E9A",
   "Mabel":"D9F7FF",
   "MacaroniandCheese":"FFB97B",
+  "MclarenOrange":"FF8000",
   "Madang":"B7F0BE",
   "Madison":"09255D",
   "Madras":"3F3002",
@@ -1257,6 +1279,7 @@ from 'colour_map.jinja' import
   "Melanzane":"300529",
   "Melon":"FEBAAD",
   "Melrose":"C7C1FF",
+  "MercedesBlue":"27F4D2",
   "Merino":"F6F0E6",
   "Merlot":"831923",
   "MetallicBronze":"49371B",
@@ -1397,7 +1420,6 @@ from 'colour_map.jinja' import
   "PaleSky":"6E7783",
   "PaleTurquoise":"AFEEEE",
   "PaleVioletRed":"DB7093",
-  "PalmGreen":"09230F",
   "PalmLeaf":"19330E",
   "Panache":"EAF6EE",
   "Pancho":"EDCDAB",
@@ -1521,11 +1543,12 @@ from 'colour_map.jinja' import
   "RawSienna":"D27D46",
   "RawUmber":"734A12",
   "RazzleDazzleRose":"FF33CC",
-  "Razzmatazz":"E30B5C",
   "Rebel":"3C1206",
   "Red":"FF0000",
   "RedBeech":"7B3801",
   "RedBerry":"8E0000",
+  "RedBullBlue":"001344",
+  "RedBullPaleBlue":"6692FF",
   "RedDamask":"DA6A41",
   "RedDevil":"860111",
   "RedOrange":"FF3F34",
@@ -1632,6 +1655,7 @@ from 'colour_map.jinja' import
   "Scooter":"2EBFD4",
   "ScotchMist":"FFFBDC",
   "ScreaminGreen":"66FF66",
+  "ScuderiaRed":"A6051A",
   "SeaBuckthorn":"FBA129",
   "SeaGreen":"2E8B57",
   "SeaMist":"C5DBCA",
@@ -1649,8 +1673,6 @@ from 'colour_map.jinja' import
   "SepiaBlack":"2B0202",
   "SepiaSkin":"9E5B40",
   "Serenade":"FFF4E8",
-  "Shadow":"837050",
-  "ShadowGreen":"9AC2B8",
   "Shakespeare":"4EABD1",
   "Shalimar":"FBFFBA",
   "Shamrock":"33CC99",
@@ -1895,6 +1917,7 @@ from 'colour_map.jinja' import
   "WildWatermelon":"FD5B78",
   "WildWillow":"B9C46A",
   "William":"3A686C",
+  "WilliamsBlue":"64C4FF",
   "WillowBrook":"DFECDA",
   "WillowGrove":"65745D",
   "Windsor":"3C0878",
