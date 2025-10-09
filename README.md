@@ -19,9 +19,9 @@ Copy the colour_map.jinja file into your config/custom_templates directory in Ho
 # To play with
 In Developers Tools->Template try pasting this once you have installed:
 ```
-{%- from 'colour_map.jinja' import random_colours, random_colour, lookup_colour, lookup_colours, textify_list -%}
+{%- from 'colour_map.jinja' import random_colours, random_colour, lookup_colour, lookup_colours -%}
 Random colour name: {{ lookup_colour() | from_json }}
-Random colour: {{ random_colour() }}
+Random colour: {{ random_colour() | from_json }}
 List of random colours: {{ random_colours(3) | from_json }}
 List of random colour names: {{ lookup_colours(random_colours(3)) | from_json }}
 
@@ -34,9 +34,9 @@ HSV for colour SkyBlue: {{ lookup_colour("SkyBlue", "hsv") | from_json }}
 HS for colour SkyBlue: {{ lookup_colour("SkyBlue", "hs") | from_json }}
 
 Random HS colour: {{ lookup_colour("random", "hs") | from_json }}
-Random HS colour: {{ lookup_colour(random_colour(), "hs") | from_json }}
+Random HS colour: {{ lookup_colour(random_colour() | from_json, "hs") | from_json }}
 Random HEX colour: {{ lookup_colour("random", "hex") | from_json }}
-Random HEX colour: {{ lookup_colour(random_colour(), "hex") | from_json }}
+Random HEX colour: {{ lookup_colour(random_colour() | from_json, "hex") | from_json }}
 
 {%- set aColour = lookup_colour() | from_json %}
 
@@ -53,46 +53,44 @@ List of 3 random HEX codes: {{ lookup_colours(random_colours(3) | from_json, "he
 
 Using the Formula1 colour map...
 List of 3 random F1 colours: {{ random_colours(3, "f1") | from_json }}
-List of 3 random F1 colour names: {{ lookup_colours(random_colours(3, "f1")| from_json) | from_json }}
-List of 3 random F1 colour names: {{ lookup_colours(random_colours(3, "f1") | from_json, "names", "f1") | from_json }}
+List of 3 random F1 colour names: {{ lookup_colours(random_colours(3, "f1") | from_json, "name", "f1") | from_json }}
 List of 3 random F1 HEX codes: {{ lookup_colours(random_colours(3, "f1") | from_json , "hex", "f1") | from_json  }}
 ```
 You should see the output looking like this:
 ```
-Random colour name: Blue Charcoal
-Random colour: Matisse
-List of random colours: ['Broom', 'Juniper', 'Jacaranda']
-List of random colour names: ['Fun Green', 'Cornsilk', 'Chestnut']
+Random colour name: Black
+Random colour: Driftwood
+List of random colours: ['Cabaret', 'Sorbus', 'Gothic']
+List of random colour names: ['Valor Green', 'Castro', 'Brown Tumbleweed']
 
-HEX for Red: FF0000
+HEX for Red: #ff0000
 
 RGB for colour name Sky Blue: [135, 206, 235]
-HEX for colour SkyBlue: 87CEEB
+HEX for colour SkyBlue: #87ceeb
 RGB for colour SkyBlue: [135, 206, 235]
 HSV for colour SkyBlue: [197.4, 42.553, 92.157]
 HS for colour SkyBlue: [197.4, 42.553]
 
-Random HS colour: [326.471, 14.912]
-Random HS colour: [215.769, 98.113]
-Random HEX colour: F3D9DF
-Random HEX colour: B05E81
+Random HS colour: [60.504, 49.791]
+Random HS colour: [48.96, 82.237]
+Random HEX colour: #2e3f62
+Random HEX colour: #6cdae7
 
-Random colour name in variable aColour: Coconut Cream
+Random colour name in variable aColour: Rodeo Dust
 
-HEX for Coconut Cream: F8F7DC
-HSL for Coconut Cream: [57.857, 66.667, 91.765]
-HS for Coconut Cream: [57.857, 11.29]
-RGB for Coconut Cream: [248, 247, 220]
+HEX for Rodeo Dust: #c9b29b
+HSL for Rodeo Dust: [30.0, 29.87, 69.804]
+HS for Rodeo Dust: [30.0, 22.886]
+RGB for Rodeo Dust: [201, 178, 155]
 
-List of 3 random colours: ['PearlBush', 'BattleshipGray', 'LightCoral']
-List of 3 random colour names: ['Cardinal', 'East Bay', 'Dark Burgundy']
-List of 3 random HEX codes: ['C2BDB6', '02478E', '368716']
+List of 3 random colours: ['RoyalPurple', 'ParisDaisy', 'Yuma']
+List of 3 random colour names: ['Varden', 'Moccaccino', 'Chablis']
+List of 3 random HEX codes: ['#ba7f03', '#860111', '#db9690']
 
 Using the Formula1 colour map...
-List of 3 random F1 colours: ['FerrariYellow', 'RedBullBlue', 'KickSauberGreen']
-List of 3 random F1 colour names: ['Ferrari Red', 'Mercedes Blue', 'Aston Martin Pale Green']
-List of 3 random F1 colour names: ['Haas Grey', 'Ferrari Yellow', 'Mercedes Blue']
-List of 3 random F1 HEX codes: ['FF87BC', '00594F', '6692FF']
+List of 3 random F1 colours: ['FerrariRed', 'ScuderiaRed', 'KickSauberGreen']
+List of 3 random F1 colour names: ['British Racing Green', 'Williams Blue', 'Azzurro La Plata']
+List of 3 random F1 HEX codes: ['#001344', '#1085fe', '#27f4d2']
 ```
 
 
@@ -104,7 +102,7 @@ In an entity-row in a lovelace dashboard (using custom:template-entity-row):
         entity: some.entity
         color: |-
           {%- from 'colour_map.jinja' import lookup_colour -%}
-          {{'#'}}{{ lookup_colour('Green Yellow','hex') | from_json }}
+          {{ lookup_colour('Green Yellow','hex') | from_json }}
           
 ```
 
@@ -115,7 +113,7 @@ service: input_text.set_value
 data:
   value: >-
     {%- from 'colour_map.jinja' import random_colour -%}
-    {{ random_colour() }}
+    {{ random_colour() | from_json }}
 target:
   entity_id: input_text.some_text_helper
 ```
@@ -127,7 +125,7 @@ data:
   transition: 5
   hs_color: >-
     {%- from 'colour_map.jinja' import lookup_colour -%}
-    {{ lookup_colour(random_colour(), "hs") | from_json }}
+    {{ lookup_colour(attr="hs") | from_json }}
   brightness_pct: 100
 target:
   entity_id: light.my_light
