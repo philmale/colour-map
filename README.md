@@ -49,7 +49,7 @@ RGB for {{ aColour }}: {{ lookup_colour(aColour, "rgb") | from_json }}
 
 List of 3 random colours: {{ random_colours(3) | from_json }}
 List of 3 random colour names: {{ lookup_colours(random_colours(3) | from_json) | from_json }}
-String of 3 random HEX codes: {{ lookup_colours(random_colours(3) | from_json, "hex") | from_json }}
+List of 3 random HEX codes: {{ lookup_colours(random_colours(3) | from_json, "hex") | from_json }}
 
 Using the Formula1 colour map...
 List of 3 random F1 colours: {{ random_colours(3, "f1") | from_json }}
