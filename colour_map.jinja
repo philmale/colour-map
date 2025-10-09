@@ -8,7 +8,7 @@ from 'colours.jinja' import
   name_to_tag, tag_to_name,
   lookup_colour, lookup_colours, find_colour,
   hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2h,
-  hex2xyb, rgb2hex
+  hex2xyb, rgb2hex, textify_list
 #}
 
 {# Random colour #}
@@ -247,6 +247,36 @@ from 'colours.jinja' import
       x | round(3),
       y | round(3),
       Br ] | to_json -}}
+{%- endmacro -%}
+
+{# Convert a list or comma-separated string into a language text string
+   Parameters:
+   - l: List of items or comma-separated string
+   - separator: Optional custom separator (default: ', ')
+   - final_separator: Optional final separator (default: ' and ')
+   - unique: Optional boolean to remove duplicates (default: false)
+   - final: Optional end of line sperator (default: '.')
+#}
+{%- macro textify_list(l=[], separator=', ', final_separator=' and ', eol='.', unique=false) -%}
+  {# Handle input as either string or list #}
+  {%- set items = l.split(',') if l is string else l -%}
+
+  {# Remove empty items and whitespace #}
+  {%- set items = items | select('string') | map('trim') | list -%}
+
+  {# Remove duplicates if requested #}
+  {%- if unique -%}
+    {%- set items = items | unique | list -%}
+  {%- endif -%}
+
+  {# Handle different list lengths #}
+  {%- if items | count == 0 -%}
+    {{- '' -}}
+  {%- elif items | count == 1 -%}
+    {{- items[0] -}}
+  {%- else -%}
+    {{- (items[:-1] | join(separator)) + final_separator + items[-1] + eol -}}
+  {%- endif -%}
 {%- endmacro -%}
 
 {%- set colours = {
