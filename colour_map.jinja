@@ -8,39 +8,45 @@ from 'colours.jinja' import
   name_to_tag, tag_to_name,
   lookup_colour, lookup_colours, find_colour,
   hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2h,
-  hex2xyb, rgb2hex, textify_list
+  hex2xyb, rgb2hex
 #}
 
 {# Random colour #}
 {# Parameters:
    - map: Colour name map to use
-   - exclude: List of colour names to avoid
 #}
-{%- macro random_colour(map="lamp", exclude=[]) -%}
+{%- macro random_colour(map="lamp") -%}
   {%- set colour_map = colours[map] -%}
-  {%- set exclude = exclude | map('regex_replace', '\W', '', false) | list -%}
-  {%- set search = colour_map.keys() | reject('in', exclude) | list -%}
-  {{- search | random -}}
+  {{- colour_map.keys() | list | random | to_json -}}
 {%- endmacro -%}
 
 {# Random colours #}
 {# Parameters:
    - n: Number of colours to return
    - map: Colour name map to use
-   - exclude: List of colour names to avoid
 #}
-{%- macro random_colours(n=1, map="lamp", exclude=[]) -%}
+{%- macro random_colours(n=1, map="lamp") -%}
   {%- set colour_map = colours[map] -%}
-  {%- set exclude = exclude | map('regex_replace', '\W', '', false) | list -%}
-  {%- set search = colour_map.keys() | reject('in', exclude) | list -%}
-  {%- if n > search|count -%}
-    {%- set n = search|count -%}
+  {%- set search = colour_map.keys() | list -%}
+  {%- if n > (search | count) -%}
+    {%- set n = search | count -%}
   {%- endif -%}
-  {%- set e = namespace(ex = exclude, ac = []) -%}
+  {%- set e = namespace(ex = [], ac = []) -%}
   {%- for i in range(n) -%}
-    {%- set c = search | reject('in', e.ex) | list | random -%}
-    {%- set e.ex = e.ex + [c] -%}
-    {%- set e.ac = e.ac + [c] -%}
+    {%- set available = search | reject('in', e.ex) | list -%}
+    {%- if (available | count) == 0 -%}
+      {# Pool exhausted, break early #}
+      {%- break -%}
+    {%- elif (available | count) <= (n - (e.ac | count)) -%}
+      {# Remaining pool fits in what we need, take them all #}
+      {%- set e.ac = e.ac + available -%}
+      {%- break -%}
+    {%- else -%}
+      {# Pool has more than we need, pick one randomly #}
+      {%- set c = available | random -%}
+      {%- set e.ex = e.ex + [c] -%}
+      {%- set e.ac = e.ac + [c] -%}
+    {%- endif -%}
   {%- endfor -%}
   {{- e.ac | to_json -}}
 {%- endmacro -%}
@@ -50,11 +56,11 @@ from 'colours.jinja' import
    - name/tag: Colour name/tag to turn into a tag/name
 #}
 {%- macro name_to_tag(name) -%}
-  {{- name | regex_replace('\W','',false) -}}
+  {{- name | regex_replace('\W','',false) | to_json -}}
 {%- endmacro -%}
 
 {%- macro tag_to_name(tag) -%}
-  {{- tag | regex_replace('([a-z])([A-Z])', '\\1 \\2',false) -}}
+  {{- tag | regex_replace('([a-z])([A-Z])', '\\1 \\2',false) | to_json -}}
 {%- endmacro -%}
 
 {# Data table extraction #}
@@ -63,12 +69,12 @@ from 'colours.jinja' import
    - attr: Which attribute to return
    - map: Which colour map to use
 #}
-{%- macro lookup_colour(id=random_colour(), attr="name", map="lamp") -%}
+{%- macro lookup_colour(id=None, attr="name", map="lamp") -%}
   {%- set colour_map = colours[map] -%}
-  {%- if id == "random" -%}
-    {%- set id = random_colour(map) -%}
+  {%- if id is none or id == "random" -%}
+    {%- set id = random_colour(map) | from_json -%}
   {%- else -%}
-    {%- set id = find_colour(id, map) -%}
+    {%- set id = find_colour(id, map) | from_json -%}
   {%- endif -%}
   {%- if id|length -%}
     {%- if attr == "rgb" -%}
@@ -84,15 +90,18 @@ from 'colours.jinja' import
     {%- elif attr == "xyb" -%}
       {{- hex2xyb(colour_map[id]) -}}
     {%- elif attr == "hex" -%}
-      {{- colour_map[id] | to_json -}}
+      {{- ('#' + colour_map[id] | lower) | to_json -}}
     {%- else -%}
-      {{- tag_to_name(id) | to_json -}}
+      {{- tag_to_name(id) -}}
     {%- endif -%}
   {%- endif -%}
 {%- endmacro -%}
 
-{%- macro lookup_colours(cs=random_colour(), attr="name", map="lamp") -%}
+{%- macro lookup_colours(cs=None, attr="name", map="lamp") -%}
   {%- set r = namespace(c=[]) -%}
+  {%- if cs is none -%}
+    {%- set cs = random_colour(map) | from_json -%}
+  {%- endif -%}
   {%- if cs is string -%}
     {%- set cs = (cs | replace(' and ', ',')).split(',') |
         map('trim') | list -%}
@@ -106,16 +115,19 @@ from 'colours.jinja' import
   {{- r.c | to_json -}}
 {%- endmacro -%}
 
-{%- macro find_colour(name=random_colour(), map="lamp") -%}
+{%- macro find_colour(name=None, map="lamp") -%}
   {%- set colour_map = colours[map] -%}
-  {%- set tag = name_to_tag(name) -%}
+  {%- if name is none -%}
+    {%- set name = random_colour(map) | from_json -%}
+  {%- endif -%}
+  {%- set tag = name_to_tag(name) | from_json -%}
   {%- if colour_map[tag] is defined -%}
-    {{- tag -}}
+    {{- tag | to_json -}}
   {%- else -%}
     {%- set tag = tag|lower -%}
-    {%- for i in colour_map -%}
+    {%- for i in colour_map.keys() | list -%}
       {%- if i|lower == tag -%}
-        {{- i -}}
+        {{- i | to_json -}}
         {%- break -%}
       {%- endif -%}
     {%- endfor -%}
@@ -135,7 +147,7 @@ from 'colours.jinja' import
   {%- set r = '%02x'|format(rgb[0]) -%}
   {%- set g = '%02x'|format(rgb[1]) -%}
   {%- set b = '%02x'|format(rgb[2]) -%}
-  {{'#' + r + g + b}}
+  {{- ('#' + r + g + b) | to_json -}}
 {%- endmacro -%}
 
 {%- macro hex2hsv(hex) -%}
@@ -247,36 +259,6 @@ from 'colours.jinja' import
       x | round(3),
       y | round(3),
       Br ] | to_json -}}
-{%- endmacro -%}
-
-{# Convert a list or comma-separated string into a language text string
-   Parameters:
-   - l: List of items or comma-separated string
-   - separator: Optional custom separator (default: ', ')
-   - final_separator: Optional final separator (default: ' and ')
-   - unique: Optional boolean to remove duplicates (default: false)
-   - final: Optional end of line sperator (default: '.')
-#}
-{%- macro textify_list(l=[], separator=', ', final_separator=' and ', eol='.', unique=false) -%}
-  {# Handle input as either string or list #}
-  {%- set items = l.split(',') if l is string else l -%}
-
-  {# Remove empty items and whitespace #}
-  {%- set items = items | select('string') | map('trim') | list -%}
-
-  {# Remove duplicates if requested #}
-  {%- if unique -%}
-    {%- set items = items | unique | list -%}
-  {%- endif -%}
-
-  {# Handle different list lengths #}
-  {%- if items | count == 0 -%}
-    {{- '' -}}
-  {%- elif items | count == 1 -%}
-    {{- items[0] -}}
-  {%- else -%}
-    {{- (items[:-1] | join(separator)) + final_separator + items[-1] + eol -}}
-  {%- endif -%}
 {%- endmacro -%}
 
 {%- set colours = {
@@ -464,7 +446,6 @@ from 'colours.jinja' import
 	  "Almond":"EED9C4",
 	  "AlmondFrost":"907B71",
 	  "Alpine":"AF8F2C",
-	  "AlpinePink":"FF87BC",
 	  "Aluminium":"A9ACB6",
 	  "Amaranth":"E52B50",
 	  "Amazon":"3B7A57",
@@ -500,8 +481,6 @@ from 'colours.jinja' import
 	  "Ash":"C6C3B5",
 	  "Asparagus":"7BA05B",
 	  "Asphalt":"130A06",
-	  "AstonMartinGreen":"00594F",
-	  "AstonMartinPaleGreen":"229971",
 	  "Astra":"FAEAB9",
 	  "Astral":"327DA0",
 	  "Astronaut":"283A77",
@@ -519,8 +498,6 @@ from 'colours.jinja' import
 	  "Aztec":"0D1C19",
 	  "Azure":"F0FFFF",
 	  "AzureRadiance":"007FFF",
-	  "AzzurroDino":"1085FE",
-	  "AzzurroLaPlata":"B4D0E8",
 	  "BabyBlue":"E0FFFF",
 	  "BahamaBlue":"026395",
 	  "Bahia":"A5CB0C",
@@ -623,7 +600,6 @@ from 'colours.jinja' import
 	  "BrightTurquoise":"08E8DE",
 	  "BrilliantRose":"F653A6",
 	  "BrinkPink":"FB607F",
-	  "BritishRacingGreen":"004225",
 	  "Bronco":"ABA196",
 	  "Bronze":"3F2109",
 	  "BronzeOlive":"4E420C",
@@ -971,8 +947,6 @@ from 'colours.jinja' import
 	  "FernFrond":"657220",
 	  "FernGreen":"4F7942",
 	  "Ferra":"704F50",
-	  "FerrariRed":"FF2800",
-	  "FerrariYellow":"FFEB00",
 	  "Festival":"FBE96C",
 	  "Feta":"F0FCEA",
 	  "FieryOrange":"B35213",
@@ -1092,7 +1066,6 @@ from 'colours.jinja' import
 	  "GumLeaf":"B6D3BF",
 	  "GunPowder":"414257",
 	  "Gurkha":"9A9577",
-	  "HaasGrey":"B6BABD",
 	  "Hacienda":"98811B",
 	  "HairyHeath":"6B2A14",
 	  "Haiti":"1B1035",
@@ -1209,7 +1182,6 @@ from 'colours.jinja' import
 	  "Keppel":"3AB09E",
 	  "KeyLimePie":"BFC921",
 	  "Khaki":"F0E68C",
-	  "KickSauberGreen":"52E252",
 	  "Kidnapper":"E1EAD4",
 	  "Kilamanjaro":"240C02",
 	  "Killarney":"3A6A47",
@@ -1335,7 +1307,6 @@ from 'colours.jinja' import
 	  "Mauve":"E0B0FF",
 	  "Mauvelous":"F091A9",
 	  "Maverick":"D8C2D5",
-	  "MclarenOrange":"FF8000",
 	  "MediumAquamarine":"66CDAA",
 	  "MediumBlue":"0000CD",
 	  "MediumCarmine":"AF4035",
@@ -1351,7 +1322,6 @@ from 'colours.jinja' import
 	  "Melanzane":"300529",
 	  "Melon":"FEBAAD",
 	  "Melrose":"C7C1FF",
-	  "MercedesBlue":"27F4D2",
 	  "Merino":"F6F0E6",
 	  "Merlot":"831923",
 	  "MetallicBronze":"49371B",
@@ -1620,8 +1590,6 @@ from 'colours.jinja' import
 	  "Rebel":"3C1206",
 	  "RedBeech":"7B3801",
 	  "RedBerry":"8E0000",
-	  "RedBullBlue":"001344",
-	  "RedBullPaleBlue":"6692FF",
 	  "RedDamask":"DA6A41",
 	  "RedDevil":"860111",
 	  "Red":"FF0000",
@@ -1729,7 +1697,6 @@ from 'colours.jinja' import
 	  "Scooter":"2EBFD4",
 	  "ScotchMist":"FFFBDC",
 	  "ScreaminGreen":"66FF66",
-	  "ScuderiaRed":"A6051A",
 	  "SeaBuckthorn":"FBA129",
 	  "SeaGreen":"2E8B57",
 	  "Seagull":"80CCEA",
@@ -1995,8 +1962,6 @@ from 'colours.jinja' import
 	  "WildWatermelon":"FD5B78",
 	  "WildWillow":"B9C46A",
 	  "William":"3A686C",
-	  "WilliamsBlue":"64C4FF",
-	  "WilliamsBlue":"64C4FF",
 	  "WillowBrook":"DFECDA",
 	  "WillowGrove":"65745D",
 	  "Windsor":"3C0878",
