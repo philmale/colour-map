@@ -1,30 +1,76 @@
-{# Phil: Macros for colour names #}
-{# NB: Macros return strings, so results are json format #}
-{# LA-HA v2.0 #}
+{#- Phil: Macros for colour names -#}
+{#- NB: Macros return strings, so results are json format -#}
+{#- LA-HA v2.1 -#}
 
-{#
-from 'colours.jinja' import 
-  random_colour, random_colours,
-  name_to_tag, tag_to_name,
-  lookup_colour, lookup_colours, find_colour,
-  hex2rgb, hex2hsv, hex2hsl, hex2hs, hex2h,
-  hex2xyb, rgb2hex
-#}
+{#-
+from 'colours.jinja' import
+  random_colour,
+  random_colours,
+  sunset_colour,
+  name_to_tag,
+  tag_to_name,
+  lookup_colour,
+  lookup_colours,
+  find_colour,
+  average_hex_colour,
+  hex2rgb,
+  hex2hsv,
+  hex2hsl,
+  hex2hs,
+  hex2h,
+  hex2xyb,
+  rgb2hex
+-#}
 
-{# Random colour #}
-{# Parameters:
-   - map: Colour name map to use
-#}
+{#--
+ # Random Colour Selection
+ #
+ # These macros help you select random colours from named colour
+ # maps. Three maps are available: "lamp" (general lighting),
+ # "f1" (Formula 1 team colours), and "ha" (Home Assistant colours).
+--#}
+
+{#-
+ #  Select a single random colour from a colour map
+ #
+ #  Parameters:
+ #    map: Colour name map to use (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON string containing the colour tag name.
+ #
+ #  Examples:
+ #    {{ random_colour() }}
+ #    Returns: "ForestGreen"
+ #
+ #    {{ random_colour("f1") }}
+ #    Returns: "FerrariRed"
+-#}
 {%- macro random_colour(map="lamp") -%}
   {%- set colour_map = colours[map] -%}
   {{- colour_map.keys() | list | random | to_json -}}
 {%- endmacro -%}
 
-{# Random colours #}
-{# Parameters:
-   - n: Number of colours to return
-   - map: Colour name map to use
-#}
+{#-
+ #  Select multiple random colours without repeats
+ #
+ #  Parameters:
+ #    n: Number of colours to return (default: 1)
+ #    map: Colour name map to use (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON array of colour tag names without duplicates.
+ #    If n exceeds available colours, returns all colours.
+ #
+ #  Examples:
+ #    {{ random_colours(3) }}
+ #    Returns: ["ForestGreen", "CrimsonRed", "OceanBlue"]
+ #
+ #    {{ random_colours(5, "f1") }}
+ #    Returns: Five different F1 team colours
+-#}
 {%- macro random_colours(n=1, map="lamp") -%}
   {%- set colour_map = colours[map] -%}
   {%- set search = colour_map.keys() | list -%}
@@ -35,14 +81,14 @@ from 'colours.jinja' import
   {%- for i in range(n) -%}
     {%- set available = search | reject('in', e.ex) | list -%}
     {%- if (available | count) == 0 -%}
-      {# Pool exhausted, break early #}
+      {#- Pool exhausted, break early -#}
       {%- break -%}
     {%- elif (available | count) <= (n - (e.ac | count)) -%}
-      {# Remaining pool fits in what we need, take them all #}
+      {#- Remaining pool fits in what we need, take them all -#}
       {%- set e.ac = e.ac + available -%}
       {%- break -%}
     {%- else -%}
-      {# Pool has more than we need, pick one randomly #}
+      {#- Pool has more than we need, pick one randomly -#}
       {%- set c = available | random -%}
       {%- set e.ex = e.ex + [c] -%}
       {%- set e.ac = e.ac + [c] -%}
@@ -51,32 +97,126 @@ from 'colours.jinja' import
   {{- e.ac | to_json -}}
 {%- endmacro -%}
 
-{# Name crunching #}
-{# Parameters:
-   - name/tag: Colour name/tag to turn into a tag/name
-#}
+{#-
+ # Lookup a random colour that is not too red or white
+ #
+ # Parameters:
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ # Returns:
+ #   JSON format string name of the colour selected.
+ # 
+ # Examples:
+ #   {{ sunset_colour() }}
+ #   Returns: "Forest Green"
+-#}
+{%- macro sunset_colour(map) -%}
+  {%- set colour_map = colours[map] -%}
+  {%- set keys = colour_map.keys() | list -%}
+  {%- set candidate = namespace(c = "") -%}
+  {%- for i in range(0, keys|length) -%}
+    {%- set candidate.c = keys | random -%}
+    {%- set (h,s) = hex2hs(colour_map[candidate.c]) | from_json -%}
+    {%- set is_white = s < 5 -%}
+    {%- set is_red = h > 350 or h < 10 -%}
+    {%- if not is_white and not is_red -%}
+      {%- break -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ candidate.c | to_json }}
+{%- endmacro -%}
+
+{#--
+ # Colour Name Manipulation
+ #
+ # Convert between human-readable colour names and internal tags.
+ # Tags are names with all non-alphanumeric characters removed.
+--#}
+
+{#-
+ #  Convert a colour name to a tag
+ #
+ #  Parameters:
+ #    name: Human-readable colour name
+ #
+ #  Returns:
+ #    JSON string with tag (alphanumeric only).
+ #
+ #  Examples:
+ #    {{ name_to_tag("Forest Green") }}
+ #    Returns: "ForestGreen"
+ #
+ #    {{ name_to_tag("Red, White and Blue") }}
+ #    Returns: "RedWhiteandBlue"
+-#}
 {%- macro name_to_tag(name) -%}
   {{- name | regex_replace('\W','',false) | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert a tag to a human-readable colour name
+ #
+ #  Parameters:
+ #    tag: Colour tag (alphanumeric only)
+ #
+ #  Returns:
+ #    JSON string with spaces inserted before capital letters.
+ #
+ #  Examples:
+ #    {{ tag_to_name("ForestGreen") }}
+ #    Returns: "Forest Green"
+ #
+ #    {{ tag_to_name("RedWhiteandBlue") }}
+ #    Returns: "Red Whiteand Blue"
+-#}
 {%- macro tag_to_name(tag) -%}
   {{- tag | regex_replace('([a-z])([A-Z])', '\\1 \\2',false) | to_json -}}
 {%- endmacro -%}
 
-{# Data table extraction #}
-{# Parameters:
-   - id/cs: Colour tag, name or comma seperated list of colour names or tags
-   - attr: Which attribute to return
-   - map: Which colour map to use
-#}
+{#--
+ # Colour Lookup and Search
+ #
+ # Look up colours by name or tag and retrieve them in various
+ # formats (name, hex, rgb, hsv, hsl, hs, h, xyb). These macros
+ # search the colour maps and return the requested format.
+--#}
+
+{#-
+ #  Look up a colour and return it in the requested format
+ #
+ #  Parameters:
+ #    id: Colour tag or name (default: None, returns random)
+ #        Special value "random" also returns random
+ #        Special value "sunset_safe" returns not red or white(!)
+ #    attr: Format to return (default: "name")
+ #          Options: "name", "hex", "rgb", "hsv", "hsl", "hs",
+ #                   "h", "xyb"
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON value in the requested format, or empty if not found.
+ #
+ #  Examples:
+ #    {{ lookup_colour("ForestGreen", "hex") }}
+ #    Returns: "#228B22"
+ #
+ #    {{ lookup_colour("Ferrari Red", "hs", "f1") }}
+ #    Returns: [0, 100]
+ #
+ #    {{ lookup_colour("random") }}
+ #    Returns: Random colour name
+-#}
 {%- macro lookup_colour(id=None, attr="name", map="lamp") -%}
   {%- set colour_map = colours[map] -%}
   {%- if id is none or id == "random" -%}
     {%- set id = random_colour(map) | from_json -%}
+  {%- elif id == 'sunset_safe' -%}
+    {%- set id = sunset_colour(map) | from_json -%}
   {%- else -%}
     {%- set id = find_colour(id, map) | from_json -%}
   {%- endif -%}
-  {%- if id|length -%}
+  {%- if id is not none -%}
     {%- if attr == "rgb" -%}
       {{- hex2rgb(colour_map[id]) -}}
     {%- elif attr == "hsv" -%}
@@ -94,9 +234,37 @@ from 'colours.jinja' import
     {%- else -%}
       {{- tag_to_name(id) -}}
     {%- endif -%}
+  {%- else -%}
+    {{ None | to_json }}
   {%- endif -%}
 {%- endmacro -%}
 
+{#-
+ #  Look up multiple colours and return them in the requested
+ #  format
+ #
+ #  Parameters:
+ #    cs: Colour name(s) - can be:
+ #        - None (returns random)
+ #        - String (single colour or comma-separated list)
+ #        - List of colour names/tags
+ #    attr: Format to return (default: "name")
+ #          Options: "name", "hex", "rgb", "hsv", "hsl", "hs",
+ #                   "h", "xyb"
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON array of values in the requested format.
+ #
+ #  Examples:
+ #    {{ lookup_colours("Red, Green and Blue", "hs") }}
+ #    Returns: [[0, 100], [120, 100], [240, 100]]
+ #
+ #    {{ lookup_colours(["Ferrari Red", "Mercedes Blue"],
+ #                      "hex", "f1") }}
+ #    Returns: ["#FF2800", "#27F4D2"]
+-#}
 {%- macro lookup_colours(cs=None, attr="name", map="lamp") -%}
   {%- set r = namespace(c=[]) -%}
   {%- if cs is none -%}
@@ -107,34 +275,137 @@ from 'colours.jinja' import
         map('trim') | list -%}
   {%- endif -%}
   {%- for i in cs -%}
-    {%- set lu = lookup_colour(i, attr, map) -%}
+    {%- set lu = lookup_colour(i, attr, map) | from_json -%}
     {%- if lu -%}
-      {%- set r.c = r.c + [lu | from_json] -%}
+      {%- set r.c = r.c + [lu] -%}
     {%- endif -%}
   {%- endfor -%}
   {{- r.c | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Find a colour tag by name (case-insensitive search)
+ #
+ #  Parameters:
+ #    name: Colour name to search for (default: None, random)
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON string with the matching colour tag, or empty if not
+ #    found.
+ #
+ #  Examples:
+ #    {{ find_colour("forest green") }}
+ #    Returns: "ForestGreen"
+ #
+ #    {{ find_colour("FERRARI RED", "f1") }}
+ #    Returns: "FerrariRed"
+-#}
 {%- macro find_colour(name=None, map="lamp") -%}
+  {%- set r = namespace(v=None) -%}
   {%- set colour_map = colours[map] -%}
   {%- if name is none -%}
     {%- set name = random_colour(map) | from_json -%}
   {%- endif -%}
   {%- set tag = name_to_tag(name) | from_json -%}
   {%- if colour_map[tag] is defined -%}
-    {{- tag | to_json -}}
+    {%- set r.v = tag -%}
   {%- else -%}
     {%- set tag = tag|lower -%}
     {%- for i in colour_map.keys() | list -%}
       {%- if i|lower == tag -%}
-        {{- i | to_json -}}
+        {%- set r.v = i -%}
         {%- break -%}
       {%- endif -%}
     {%- endfor -%}
-  {%- endif -%}  
+  {%- endif -%}
+  {{ r.v | to_json }}
 {%- endmacro -%}
 
-{# Colour manipulation macros #}
+{#- 
+ #  Average multiple colours to return a single hex colour
+ #  
+ #  Parameters:
+ #    cs: Colour name(s) - can be:
+ #        - None (returns random colour)
+ #        - String (single colour or comma-separated list)
+ #        - List of colour names/tags
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #  
+ #  Returns: 
+ #    JSON string with averaged hex colour (#RRGGBB).
+ #    If input is empty or invalid, returns amber colour.
+ #  
+ #  Examples:
+ #    {{ average_hex_colour("Red, Green, Blue") }}
+ #    Returns: "#555555" (average of red, green, blue)
+ #
+ #    {{ average_hex_colour(["Ferrari Red", "Mercedes Blue"], 
+ #                       "f1") }}
+ #    Returns: Averaged hex of Ferrari Red and Mercedes Blue
+-#}
+{%- macro average_hex_colour(cs=None, map="lamp") -%}
+  {#- Get hex colours -#}
+  {%- set hex_list = lookup_colours(cs, "hex", map) | 
+      from_json -%}
+  
+  {#- If no valid colours found, return amber colour -#}
+  {%- if hex_list | count == 0 -%}
+    {{- '#ffbf00' | to_json -}}
+  {%- else -%}
+    {#- Initialise accumulators for RGB components -#}
+    {%- set rgb_sum = namespace(r=0, g=0, b=0) -%}
+    
+    {#- Sum all RGB values -#}
+    {%- for hex_val in hex_list -%}
+      {%- set rgb = hex2rgb(hex_val) | from_json -%}
+      {%- set rgb_sum.r = rgb_sum.r + rgb[0] -%}
+      {%- set rgb_sum.g = rgb_sum.g + rgb[1] -%}
+      {%- set rgb_sum.b = rgb_sum.b + rgb[2] -%}
+    {%- endfor -%}
+    
+    {#- Calculate averages and convert to integers -#}
+    {%- set count = hex_list | count -%}
+    {%- set avg_r = (rgb_sum.r / count) | round(0) | int -%}
+    {%- set avg_g = (rgb_sum.g / count) | round(0) | int -%}
+    {%- set avg_b = (rgb_sum.b / count) | round(0) | int -%}
+    
+    {#- Convert back to hex using existing rgb2hex macro -#}
+    {{- rgb2hex([avg_r, avg_g, avg_b]) -}}
+  {%- endif -%}
+{%- endmacro -%}
+
+{#--
+ # Colour Format Conversion
+ #
+ # Convert between different colour formats. All conversions work
+ # from hex format to other formats, plus rgb to hex.
+ # Formats: hex (#RRGGBB), rgb ([r,g,b] 0-255),
+ #          hsv ([h,s,v] h:0-360 s,v:0-100),
+ #          hsl ([h,s,l] h:0-360 s,l:0-100),
+ #          hs ([h,s] hue and saturation only),
+ #          h ([h] hue only),
+ #          xyb ([x,y,br] CIE coordinates for Home Assistant)
+--#}
+
+{#-
+ #  Convert hex colour to RGB
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [r, g, b] with values 0-255.
+ #
+ #  Examples:
+ #    {{ hex2rgb("#FF0000") }}
+ #    Returns: [255, 0, 0]
+ #
+ #    {{ hex2rgb("00FF00") }}
+ #    Returns: [0, 255, 0]
+-#}
 {%- macro hex2rgb(hex) -%}
   {%- set hex = hex.replace('#','') -%}
   {{- [
@@ -143,6 +414,22 @@ from 'colours.jinja' import
       hex[4:6]|int(0,16) ] | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert RGB colour to hex
+ #
+ #  Parameters:
+ #    rgb: RGB array [r, g, b] with values 0-255
+ #
+ #  Returns:
+ #    JSON string with hex colour (#RRGGBB).
+ #
+ #  Examples:
+ #    {{ rgb2hex([255, 0, 0]) }}
+ #    Returns: "#ff0000"
+ #
+ #    {{ rgb2hex([0, 255, 0]) }}
+ #    Returns: "#00ff00"
+-#}
 {%- macro rgb2hex(rgb) -%}
   {%- set r = '%02x'|format(rgb[0]) -%}
   {%- set g = '%02x'|format(rgb[1]) -%}
@@ -150,6 +437,25 @@ from 'colours.jinja' import
   {{- ('#' + r + g + b) | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert hex colour to HSV (Hue, Saturation, Value)
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [h, s, v] where:
+ #      h = hue (0-360 degrees)
+ #      s = saturation (0-100 percent)
+ #      v = value/brightness (0-100 percent)
+ #
+ #  Examples:
+ #    {{ hex2hsv("#FF0000") }}
+ #    Returns: [0, 100, 100] (pure red)
+ #
+ #    {{ hex2hsv("#008080") }}
+ #    Returns: [180, 100, 50] (teal)
+-#}
 {%- macro hex2hsv(hex) -%}
   {%- set (r,g,b) = hex2rgb(hex) | from_json -%}
   {%- set (r,g,b) = [r|int(0)/255, g|int(0)/255, b|int(0)/255] -%}
@@ -173,22 +479,75 @@ from 'colours.jinja' import
     {%- set h = h/6 -%}
     {%- set s = delta / v -%}
   {%- endif -%}
-  {{- [ 
+  {{- [
       (h*360) | round(3),
       (s*100) | round(3),
       (v*100) | round(3) ] | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert hex colour to HS (Hue, Saturation only)
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [h, s] where:
+ #      h = hue (0-360 degrees)
+ #      s = saturation (0-100 percent)
+ #
+ #  Examples:
+ #    {{ hex2hs("#FF0000") }}
+ #    Returns: [0, 100]
+ #
+ #    {{ hex2hs("#FF8080") }}
+ #    Returns: [0, 50] (light red has same hue, less saturation)
+-#}
 {%- macro hex2hs(hex) -%}
   {%- set (h,s,v) = hex2hsv(hex) | from_json -%}
   {{- [h,s] | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert hex colour to H (Hue only)
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [h] where h = hue (0-360 degrees).
+ #
+ #  Examples:
+ #    {{ hex2h("#FF0000") }}
+ #    Returns: [0]
+ #
+ #    {{ hex2h("#00FF00") }}
+ #    Returns: [120]
+-#}
 {%- macro hex2h(hex) -%}
   {%- set (h,s,v) = hex2hsv(hex) | from_json -%}
   {{- [h] | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert hex colour to HSL (Hue, Saturation, Lightness)
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [h, s, l] where:
+ #      h = hue (0-360 degrees)
+ #      s = saturation (0-100 percent)
+ #      l = lightness (0-100 percent, 50=pure colour)
+ #
+ #  Examples:
+ #    {{ hex2hsl("#FF0000") }}
+ #    Returns: [0, 100, 50]
+ #
+ #    {{ hex2hsl("#FF8080") }}
+ #    Returns: [0, 100, 75] (lighter red)
+-#}
 {%- macro hex2hsl(hex) -%}
   {%- set (r,g,b) = hex2rgb(hex) | from_json -%}
   {%- set (r,g,b) = [r|int(0)/255, g|int(0)/255, b|int(0)/255] -%}
@@ -224,36 +583,72 @@ from 'colours.jinja' import
       (l*100) | round(3) ] | to_json -}}
 {%- endmacro -%}
 
+{#-
+ #  Convert hex colour to XYB (CIE colour space for HA)
+ #
+ #  Parameters:
+ #    hex: Hex colour string (with or without #)
+ #
+ #  Returns:
+ #    JSON array [x, y, brightness] where:
+ #      x = CIE x coordinate (0-1)
+ #      y = CIE y coordinate (0-1)
+ #      brightness = brightness value (0-255)
+ #    Used by some Home Assistant light integrations.
+ #
+ #  Examples:
+ #    {{ hex2xyb("#FF0000") }}
+ #    Returns: [0.701, 0.299, 54.213]
+-#}
 {%- macro hex2xyb(hex) -%}
   {%- set (r,g,b) = hex2rgb(hex) | from_json -%}
   {%- set (r,g,b) = [r|int(0)/255, g|int(0)/255, b|int(0)/255] -%}
   {%- if r == 0 and g == 0 and b == 0 -%}
-    {%- set (x,y,br) = [0.0,0.0,0] -%}
+    {%- set (x,y,Br) = [0.0,0.0,0] -%}
   {%- else -%}
-    {%- if r>0.04045 -%}
-      {%- set r = ((r+0.055)/(1.055)**2.4) -%}
+    {%- if r > 0.04045 -%}
+      {%- set r = ((r + 0.055) / 1.055) ** 2.4 -%}
     {%- else -%}
-      {%- set r = (r/12.92) -%}
+      {%- set r = r / 12.92 -%}
     {%- endif -%}
-    {%- if (g>0.04045) %}
-      {%- set g = ((g+0.055)/(1.055)**2.4) %}
-    {%- else %}
-      {%- set g = (g/12.92) %}
-    {%- endif %}
-    {%- if (b>0.04045) %}
-      {%- set b = ((b+0.055)/(1.055)**2.4) %}
-    {%- else %}
-      {%- set b = (b/12.92) %}
-    {%- endif %}
-    {%- set x = r*0.664511+g*0.154324+b*0.162028 %}
-    {%- set y = r*0.283881+g*0.668433+b*0.047685 %}
-    {%- set z = r*0.000088+g*0.072310+b*0.986039 %}
-    {%- set x = x/(x+y+z) %}
-    {%- set y = y/(x+y+z) %}
-    {%- if y > 1 -%}
-      {%- set y = 1 -%}
+
+    {%- if g > 0.04045 -%}
+      {%- set g = ((g + 0.055) / 1.055) ** 2.4 -%}
+    {%- else -%}
+      {%- set g = g / 12.92 -%}
     {%- endif -%}
-    {%- set Br = (y*255)|round(3) -%}
+
+    {%- if b > 0.04045 -%}
+      {%- set b = ((b + 0.055) / 1.055) ** 2.4 -%}
+    {%- else -%}
+      {%- set b = b / 12.92 -%}
+    {%- endif -%}
+    {%- set X = r*0.664511+g*0.154324+b*0.162028 %}
+    {%- set Y = r*0.283881+g*0.668433+b*0.047685 %}
+    {%- set Z = r*0.000088+g*0.072310+b*0.986039 %}
+    {%- set s = X + Y + Z -%}
+    {%- if s <= 0 -%}
+      {%- set (x, y, Br) = [0.0, 0.0, 0] -%}
+    {%- else -%}
+      {%- set x = X / s %}
+      {%- set y = Y / s %}
+      {%- if x < 0 -%}
+        {%- set x = 0 -%}
+      {%- elif x > 1 -%}
+        {%- set x = 1 -%}
+      {%- endif -%}
+      {%- if y < 0 -%}
+        {%- set y = 0 -%}
+      {%- elif y > 1 -%}
+        {%- set y = 1 -%}
+      {%- endif -%}
+      {%- set Br = (Y*255)|round(0)|int -%}
+      {%- if Br < 0 -%}
+        {%- set Br = 0 -%}
+      {%- elif Br > 255 -%}
+        {%- set Br = 255 -%}
+      {%- endif -%}
+    {%- endif -%}
   {%- endif -%}
   {{- [
       x | round(3),
@@ -261,6 +656,18 @@ from 'colours.jinja' import
       Br ] | to_json -}}
 {%- endmacro -%}
 
+{#--
+ # Colour Map Definitions
+ #
+ # Colour maps are defined at the end of this file:
+ #   - lamp: General purpose lighting colours
+ #   - f1: Formula 1 team colours
+ #   - ha: Home Assistant standard colours
+ #
+ # Each map is a dictionary with:
+ #   Key: ColourTag (alphanumeric, PascalCase)
+ #   Value: RRGGBB (hex colour without #)
+--#}
 {%- set colours = {
 	"f1": {
 	  "AlpinePink":"FF87BC",
@@ -433,6 +840,24 @@ from 'colours.jinja' import
 	},
 
 	"lamp": {
+
+	  "AlpinePink":"FF87BC",
+	  "AstonMartinGreen":"00594F",
+	  "AstonMartinPaleGreen":"229971",
+	  "AzzurroDino":"1085FE",
+	  "AzzurroLaPlata":"B4D0E8",
+	  "BritishRacingGreen":"004225",
+	  "FerrariRed":"FF2800",
+	  "FerrariYellow":"FFEB00",
+	  "HaasGrey":"B6BABD",
+	  "KickSauberGreen":"52E252",
+	  "MclarenOrange":"FF8000",
+	  "MercedesBlue":"27F4D2",
+	  "RedBullPaleBlue":"6692FF",
+	  "RedBullBlue":"001344",
+	  "ScuderiaRed":"A6051A",
+	  "WilliamsBlue":"64C4FF",
+
 	  "Acadia":"1B1404",
 	  "Acapulco":"7CB0A1",
 	  "AeroBlue":"C9FFE5",
@@ -1976,7 +2401,6 @@ from 'colours.jinja' import
 	  "WoodyBrown":"483131",
 	  "Xanadu":"738678",
 	  "Yellow":"FFFF00",
-	  "YellowGreen":"9ACD32",
 	  "YellowGreen":"9ACD32",
 	  "YellowMetal":"716338",
 	  "YellowOrange":"FFAE42",
