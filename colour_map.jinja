@@ -1,6 +1,6 @@
 {#- Phil: Macros for colour names -#}
 {#- NB: Macros return strings, so results are json format -#}
-{#- LA-HA v2.1 -#}
+{#- LA-HA v2.1.1 -#}
 
 {#-
 from 'colours.jinja' import
@@ -457,32 +457,38 @@ from 'colours.jinja' import
  #    Returns: [180, 100, 50] (teal)
 -#}
 {%- macro hex2hsv(hex) -%}
-  {%- set (r,g,b) = hex2rgb(hex) | from_json -%}
-  {%- set (r,g,b) = [r|int(0)/255, g|int(0)/255, b|int(0)/255] -%}
-  {%- set min = min([r,g,b]) -%}
-  {%- set max = max([r,g,b]) -%}
-  {%- set delta = max-min -%}
+  {%- set (ri,gi,bi) = hex2rgb(hex) | from_json -%}
+  {%- set (r,g,b) = [ri|int(0)/255, gi|int(0)/255, bi|int(0)/255] -%}
+
+  {%- set mn = min([r,g,b]) -%}
+  {%- set mx = max([r,g,b]) -%}
+  {%- set d = mx - mn -%}
+
   {%- set h = 0 -%}
   {%- set s = 0 -%}
-  {%- set v = max -%}
-  {%- if delta>0 -%}
-    {%- if max == r -%}
-      {%- set h = ((g-b)/delta) -%}
-      {%- if g<b -%}
-        {%- set h = h+6 -%}
-      {%- endif -%}
-    {%- elif max == g -%}
-      {%- set h = (2+((b-r)/delta)) -%}
-    {%- elif max == b -%}
-      {%- set h = (4+((r-g)/delta)) -%}
+  {%- set v = mx -%}
+
+  {%- if d > 0 -%}
+    {%- if r >= g and r >= b -%}
+      {%- set h = (g - b) / d -%}
+      {%- if h < 0 -%}{%- set h = h + 6 -%}{%- endif -%}
+    {%- elif g >= b -%}
+      {%- set h = 2 + ((b - r) / d) -%}
+    {%- else -%}
+      {%- set h = 4 + ((r - g) / d) -%}
     {%- endif -%}
-    {%- set h = h/6 -%}
-    {%- set s = delta / v -%}
+    {%- set h = h / 6 -%}
+    {%- set s = d / v -%}
   {%- endif -%}
+
+  {%- set H = (h * 360) -%}
+  {%- if H >= 360 -%}{%- set H = 0 -%}{%- endif -%}
+
   {{- [
-      (h*360) | round(3),
-      (s*100) | round(3),
-      (v*100) | round(3) ] | to_json -}}
+      H | round(3),
+      (s * 100) | round(3),
+      (v * 100) | round(3)
+    ] | to_json -}}
 {%- endmacro -%}
 
 {#-
@@ -549,38 +555,46 @@ from 'colours.jinja' import
  #    Returns: [0, 100, 75] (lighter red)
 -#}
 {%- macro hex2hsl(hex) -%}
-  {%- set (r,g,b) = hex2rgb(hex) | from_json -%}
-  {%- set (r,g,b) = [r|int(0)/255, g|int(0)/255, b|int(0)/255] -%}
-  {%- set min = min([r,g,b]) -%}
-  {%- set max = max([r,g,b]) -%}
-  {%- set delta = max-min -%}
-  {%- set l = (max+min)/2 -%}
+  {%- set (ri,gi,bi) = hex2rgb(hex) | from_json -%}
+  {%- set (r,g,b) = [ri|int(0)/255, gi|int(0)/255, bi|int(0)/255] -%}
+
+  {%- set mn = min([r,g,b]) -%}
+  {%- set mx = max([r,g,b]) -%}
+  {%- set d = mx - mn -%}
+  {%- set l = (mx + mn) / 2 -%}
+
   {%- set h = 0 -%}
   {%- set s = 0 -%}
-  {%- if l==0 or l==1 -%}
-    {%- set s = 0 -%}
-  {%- elif l>0.5 -%}
-    {%- set s = delta/(2-max-min) -%}
-  {%- else -%}
-    {%- set s = delta/(max+min) -%}
-  {%- endif -%}
-  {%- if delta>0 -%}
-    {%- if max == r -%}
-      {%- set h = ((g-b)/delta) -%}
-      {%- if g<b -%}
-        {%- set h = h+6 -%}
-      {%- endif -%}
-    {%- elif max == g -%}
-      {%- set h = (2+((b-r)/delta)) -%}
-    {%- elif max == b -%}
-      {%- set h = (4+((r-g)/delta)) -%}
+
+  {%- if d > 0 -%}
+    {# hue (avoid float equality) #}
+    {%- if r >= g and r >= b -%}
+      {%- set h = (g - b) / d -%}
+      {%- if h < 0 -%}{%- set h = h + 6 -%}{%- endif -%}
+    {%- elif g >= b -%}
+      {%- set h = 2 + ((b - r) / d) -%}
+    {%- else -%}
+      {%- set h = 4 + ((r - g) / d) -%}
     {%- endif -%}
-    {%- set h = h/6 -%}
+    {%- set h = h / 6 -%}
+
+    {# saturation: s = d / (1 - |2l - 1|) #}
+    {%- set denom = 1 - (2*l - 1) | abs -%}
+    {%- if denom > 0 -%}
+      {%- set s = d / denom -%}
+    {%- else -%}
+      {%- set s = 0 -%}
+    {%- endif -%}
   {%- endif -%}
+
+  {%- set H = (h * 360) -%}
+  {%- if H >= 360 -%}{%- set H = 0 -%}{%- endif -%}
+
   {{- [
-      (h*360) | round(3),
-      (s*100) | round(3),
-      (l*100) | round(3) ] | to_json -}}
+      H | round(3),
+      (s * 100) | round(3),
+      (l * 100) | round(3)
+    ] | to_json -}}
 {%- endmacro -%}
 
 {#-
