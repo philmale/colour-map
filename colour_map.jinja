@@ -13,6 +13,7 @@ from 'colours.jinja' import
   lookup_colours,
   find_colour,
   average_hex_colour,
+  nearest_colour_name,
   hex2rgb,
   hex2hsv,
   hex2hsl,
@@ -375,6 +376,63 @@ from 'colours.jinja' import
     {#- Convert back to hex using existing rgb2hex macro -#}
     {{- rgb2hex([avg_r, avg_g, avg_b]) -}}
   {%- endif -%}
+{%- endmacro -%}
+
+{#-
+ #  Find the nearest named colour for a given hex colour
+ #
+ #  Parameters:
+ #    hex: Input colour in hex format. Accepts:
+ #         - "#RRGGBB"
+ #         - "RRGGBB"
+ #         - "#RRGGBBAA" (alpha is ignored)
+ #         - "RRGGBBAA"  (alpha is ignored)
+ #    map: Colour map to search (default: "lamp")
+ #         Options: "lamp", "f1", "ha"
+ #
+ #  Returns:
+ #    JSON string with the human-readable colour name of the
+ #    closest match from the selected map (e.g. "Forest Green").
+ #    If the map is empty or input is invalid, result may be null
+ #    (depending on calling context).
+ #
+ #  Notes:
+ #    - Uses RGB Euclidean distance (squared) to find the closest
+ #      colour in the map.
+ #    - Alpha channel (AA) is ignored if present.
+ #
+ #  Examples:
+ #    {{ nearest_colour_name("#FFF144FF") }}
+ #    Returns: "Jedi Yellow" (closest match in "lamp" map)
+ #    
+ #    {{ nearest_colour_name("#FFFF00FF") | from_json }}
+ #    Returns: Jedi Yellow (without quotes)
+ #
+ #    {{ nearest_colour_name("#27F4D2", "f1") }}
+ #    Returns: Closest F1 team colour name - "Mercedes Blue"
+-#}
+{%- macro nearest_colour_name(hex, map="lamp") -%}
+  {%- set colour_map = colours[map] -%}
+
+  {# normalize input: "#RRGGBBAA" -> "rrggbb" #}
+  {%- set s = (hex|string)|lower|trim -%}
+  {%- if s.startswith('#') -%}{%- set s = s[1:] -%}{%- endif -%}
+  {%- set s = s[0:6] -%}
+
+  {%- set rgb = hex2rgb('#' ~ s) | from_json -%}
+  {%- set r = rgb[0] -%}{%- set g = rgb[1] -%}{%- set b = rgb[2] -%}
+
+  {%- set ns = namespace(best_tag=None, best_d=999999999) -%}
+  {%- for tag in colour_map.keys() | list -%}
+    {%- set prgb = hex2rgb('#' ~ (colour_map[tag]|lower)) | from_json -%}
+    {%- set d = (r-prgb[0])**2 + (g-prgb[1])**2 + (b-prgb[2])**2 -%}
+    {%- if d < ns.best_d -%}
+      {%- set ns.best_d = d -%}
+      {%- set ns.best_tag = tag -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {{- (tag_to_name(ns.best_tag) | from_json) | to_json -}}
 {%- endmacro -%}
 
 {#--
