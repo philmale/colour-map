@@ -1,0 +1,561 @@
+{#- 
+  TEST SUITE FOR colour_map.jinja
+  
+  Paste this into Home Assistant Developer Tools > Template
+  Combines basic functionality and integration tests
+-#}
+
+{%- from 'colour_map.jinja' import
+  random_colour,
+  random_colours,
+  sunset_colour,
+  lookup_colour,
+  lookup_colours,
+  find_colour,
+  average_hex_colour,
+  nearest_colour_name,
+  hex_complementary,
+  hex_complementary_named,
+  complementary_colours,
+  complementary_colours_named,
+  hex2rgb,
+  hex2hsv,
+  hex2hsl,
+  hex2hs,
+  hex2h,
+  hex2xyb,
+  hsv2rgb,
+  hsv2hex,
+  rgb2hex
+-%}
+
+{%- set results = namespace(passed=0, failed=0, tests=[]) -%}
+
+{#- Test helper macro -#}
+{%- macro test(name, actual, expected, type="exact") -%}
+  {%- if type == "exact" -%}
+    {%- set pass = (actual == expected) -%}
+  {%- elif type == "lowercase_hex" -%}
+    {%- set actual_str = actual | from_json if actual is string and actual.startswith('"') else actual -%}
+    {%- set pass = (actual_str | string).startswith('#') and (actual_str | string) == (actual_str | string | lower) -%}
+  {%- elif type == "not_none" -%}
+    {%- set pass = (actual is not none) -%}
+  {%- elif type == "length" -%}
+    {%- set pass = (actual | length == expected) -%}
+  {%- elif type == "array" -%}
+    {%- set pass = (actual is iterable and actual is not string) -%}
+  {%- else -%}
+    {%- set pass = false -%}
+  {%- endif -%}
+  
+  {%- if pass -%}
+    {%- set results.passed = results.passed + 1 -%}
+    {%- set results.tests = results.tests + [{"name": name, "status": "PASS"}] -%}
+  {%- else -%}
+    {%- set results.failed = results.failed + 1 -%}
+    {%- set results.tests = results.tests + [{
+      "name": name,
+      "status": "FAIL",
+      "actual": actual,
+      "expected": expected
+    }] -%}
+  {%- endif -%}
+{%- endmacro -%}
+
+========================================
+colour_map.jinja TEST SUITE
+========================================
+
+Testing basic functionality and integration workflows
+
+========================================
+PART 1: BASIC FUNCTIONALITY TESTS
+========================================
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Conversion Functions
+----------------------------------------
+
+{#- hex2rgb tests -#}
+{%- set _ = test("hex2rgb: #ff0000", hex2rgb("#ff0000") | from_json, [255, 0, 0]) -%}
+{%- set _ = test("hex2rgb: 00ff00", hex2rgb("00ff00") | from_json, [0, 255, 0]) -%}
+{%- set _ = test("hex2rgb: UPPERCASE", hex2rgb("0000FF") | from_json, [0, 0, 255]) -%}
+
+{#- rgb2hex tests -#}
+{%- set _ = test("rgb2hex: red", rgb2hex([255, 0, 0]) | from_json, "#ff0000") -%}
+{%- set _ = test("rgb2hex: green", rgb2hex([0, 255, 0]) | from_json, "#00ff00") -%}
+{%- set _ = test("rgb2hex: lowercase", rgb2hex([255, 128, 0]), "#ff8000", "lowercase_hex") -%}
+
+{#- hex2hsv tests -#}
+{%- set hsv_red = hex2hsv("#ff0000") | from_json -%}
+{%- set _ = test("hex2hsv: red hue", hsv_red[0], 0) -%}
+{%- set _ = test("hex2hsv: red sat", hsv_red[1], 100) -%}
+{%- set _ = test("hex2hsv: red val", hsv_red[2], 100) -%}
+
+{#- hsv2rgb tests -#}
+{%- set _ = test("hsv2rgb: red", hsv2rgb([0, 100, 100]) | from_json, [255, 0, 0]) -%}
+{%- set _ = test("hsv2rgb: green", hsv2rgb([120, 100, 100]) | from_json, [0, 255, 0]) -%}
+
+{#- hsv2hex tests -#}
+{%- set _ = test("hsv2hex: red", hsv2hex([0, 100, 100]) | from_json, "#ff0000") -%}
+{%- set _ = test("hsv2hex: blue", hsv2hex([240, 100, 100]) | from_json, "#0000ff") -%}
+
+{#- hex2hsl tests -#}
+{%- set hsl = hex2hsl("#ff0000") | from_json -%}
+{%- set _ = test("hex2hsl: returns array", hsl, 3, "length") -%}
+
+{#- hex2hs tests -#}
+{%- set hs = hex2hs("#ff0000") | from_json -%}
+{%- set _ = test("hex2hs: returns array", hs, 2, "length") -%}
+
+{#- hex2h tests -#}
+{%- set h = hex2h("#ff0000") | from_json -%}
+{%- set _ = test("hex2h: returns array", h, 1, "length") -%}
+
+{#- hex2xyb tests -#}
+{%- set xyb = hex2xyb("#ff0000") | from_json -%}
+{%- set _ = test("hex2xyb: returns array", xyb, 3, "length") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Colour Lookup
+----------------------------------------
+
+{#- find_colour tests -#}
+{%- set _ = test("find_colour: exact match", find_colour("Red", "ha") | from_json, "Red") -%}
+{%- set _ = test("find_colour: lowercase input", find_colour("red", "ha") | from_json, "Red") -%}
+{%- set _ = test("find_colour: uppercase input", find_colour("RED", "ha") | from_json, "Red") -%}
+{%- set _ = test("find_colour: not found", find_colour("NotAColour", "ha") | from_json, None) -%}
+
+{#- lookup_colour tests -#}
+{%- set _ = test("lookup_colour: name", lookup_colour("Red", "name", "ha") | from_json, "Red") -%}
+{%- set _ = test("lookup_colour: hex", lookup_colour("Red", "hex", "ha"), "#ff0000", "lowercase_hex") -%}
+{%- set _ = test("lookup_colour: rgb", lookup_colour("Red", "rgb", "ha") | from_json, [255, 0, 0]) -%}
+{%- set _ = test("lookup_colour: hsv array", lookup_colour("Red", "hsv", "ha") | from_json, None, "array") -%}
+
+{#- lookup_colours tests -#}
+{%- set multi = lookup_colours("Red, Green and Blue", "name", "ha") | from_json -%}
+{%- set _ = test("lookup_colours: count", multi, 3, "length") -%}
+{%- set _ = test("lookup_colours: oxford comma", lookup_colours("Red, Green, and Blue", "name", "ha") | from_json, 3, "length") -%}
+{%- set _ = test("lookup_colours: multiple spaces", lookup_colours("Red   and   Blue", "name", "ha") | from_json, 2, "length") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Hex Case Consistency
+----------------------------------------
+
+{%- set hex1 = lookup_colour("Ferrari Red", "hex", "f1") | from_json -%}
+{%- set _ = test("Hex output: lowercase", hex1, None, "lowercase_hex") -%}
+
+{%- set hex2 = average_hex_colour("Red, Blue", "ha") | from_json -%}
+{%- set _ = test("Average hex: lowercase", hex2, None, "lowercase_hex") -%}
+
+{%- set hex3 = rgb2hex([128, 128, 128]) | from_json -%}
+{%- set _ = test("rgb2hex: lowercase", hex3, None, "lowercase_hex") -%}
+
+{%- set hex4 = hsv2hex([180, 50, 75]) | from_json -%}
+{%- set _ = test("hsv2hex: lowercase", hex4, None, "lowercase_hex") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Random Functions
+----------------------------------------
+
+{%- set rc = random_colour() | from_json -%}
+{%- set _ = test("random_colour: returns string", rc, None, "not_none") -%}
+
+{%- set rc5 = random_colours(5) | from_json -%}
+{%- set _ = test("random_colours: count", rc5, 5, "length") -%}
+{%- set _ = test("random_colours: unique", rc5 | unique | list, 5, "length") -%}
+
+{%- set sc = sunset_colour("lamp") | from_json -%}
+{%- set _ = test("sunset_colour: returns string", sc, None, "not_none") -%}
+{%- set sc_hs = lookup_colour(sc, "hs", "lamp") | from_json -%}
+{%- set sc_h = sc_hs[0] -%}
+{%- set sc_s = sc_hs[1] -%}
+{%- set _ = test("sunset_colour: not white (S>=5)", sc_s >= 5, true) -%}
+{%- set _ = test("sunset_colour: not red (H)", not (sc_h > 350 or sc_h < 10), true) -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Average Colour
+----------------------------------------
+
+{%- set avg1 = average_hex_colour("Red, Blue", "ha") | from_json -%}
+{%- set _ = test("average_hex_colour: format", avg1, None, "lowercase_hex") -%}
+
+{%- set avg2 = average_hex_colour(["Red", "Green", "Blue"], "ha") | from_json -%}
+{%- set _ = test("average_hex_colour: list input", avg2, None, "lowercase_hex") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Nearest Colour
+----------------------------------------
+
+{%- set nearest1 = nearest_colour_name("#ff0000", "ha") | from_json -%}
+{%- set _ = test("nearest_colour_name: red", nearest1, "Red") -%}
+
+{%- set nearest2 = nearest_colour_name("#27F4D2", "f1") | from_json -%}
+{%- set _ = test("nearest_colour_name: Mercedes", nearest2, "Mercedes Blue") -%}
+
+{%- set nearest3 = nearest_colour_name("FF0000FF", "ha") | from_json -%}
+{%- set _ = test("nearest_colour_name: strips alpha", nearest3, "Red") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Complementary Colours
+----------------------------------------
+
+{%- set comp1 = hex_complementary("#ff0000", "complementary") | from_json -%}
+{%- set _ = test("hex_complementary: count", comp1, 2, "length") -%}
+{%- set _ = test("hex_complementary: lowercase", comp1[0], None, "lowercase_hex") -%}
+
+{%- set comp2 = hex_complementary("#ff0000", "triadic") | from_json -%}
+{%- set _ = test("hex_complementary: triadic count", comp2, 3, "length") -%}
+
+{%- set comp3 = hex_complementary("#ff0000", "square") | from_json -%}
+{%- set _ = test("hex_complementary: square count", comp3, 4, "length") -%}
+
+{%- set named1 = hex_complementary_named("#ff0000", "complementary", "ha") | from_json -%}
+{%- set _ = test("hex_complementary_named: count", named1, 2, "length") -%}
+{%- set _ = test("hex_complementary_named: first is Red", named1[0], "Red") -%}
+
+{%- set comp4 = complementary_colours("Red", "analogous", "ha") | from_json -%}
+{%- set _ = test("complementary_colours: analogous count", comp4, 3, "length") -%}
+{%- set _ = test("complementary_colours: hex format", comp4[0], None, "lowercase_hex") -%}
+
+{%- set comp5 = complementary_colours_named("Ferrari Red", "split_complementary", "f1") | from_json -%}
+{%- set _ = test("complementary_colours_named: split count", comp5, 3, "length") -%}
+
+{{- "" }}
+----------------------------------------
+TEST GROUP: Edge Cases
+----------------------------------------
+
+{%- set upper = hex2rgb("FF0000") | from_json -%}
+{%- set _ = test("Accepts uppercase hex input", upper, [255, 0, 0]) -%}
+
+{%- set with_hash = hex2rgb("#ff0000") | from_json -%}
+{%- set _ = test("Accepts # prefix", with_hash, [255, 0, 0]) -%}
+
+{%- set no_hash = hex2rgb("ff0000") | from_json -%}
+{%- set _ = test("Accepts no # prefix", no_hash, [255, 0, 0]) -%}
+
+{%- set rand = lookup_colour("random", "name", "ha") | from_json -%}
+{%- set _ = test("lookup_colour: random", rand, None, "not_none") -%}
+
+{%- set sunset = lookup_colour("sunset_safe", "name", "lamp") | from_json -%}
+{%- set _ = test("lookup_colour: sunset_safe", sunset, None, "not_none") -%}
+
+========================================
+PART 2: INTEGRATION WORKFLOW TESTS
+========================================
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 1: Name → Hex → RGB → Hex
+----------------------------------------
+{%- set name1 = "Red" -%}
+{%- set hex1 = lookup_colour(name1, "hex", "ha") | from_json -%}
+{%- set rgb1 = hex2rgb(hex1) | from_json -%}
+{%- set hex1_back = rgb2hex(rgb1) | from_json -%}
+{%- set _ = test("Red: name→hex→rgb→hex round-trip", hex1_back, "#ff0000") -%}
+
+{%- set name2 = "Blue" -%}
+{%- set hex2 = lookup_colour(name2, "hex", "ha") | from_json -%}
+{%- set rgb2 = hex2rgb(hex2) | from_json -%}
+{%- set hex2_back = rgb2hex(rgb2) | from_json -%}
+{%- set _ = test("Blue: name→hex→rgb→hex round-trip", hex2_back, "#0000ff") -%}
+
+{%- set name3 = "Green" -%}
+{%- set hex3 = lookup_colour(name3, "hex", "ha") | from_json -%}
+{%- set rgb3 = hex2rgb(hex3) | from_json -%}
+{%- set hex3_back = rgb2hex(rgb3) | from_json -%}
+{%- set _ = test("Green: name→hex→rgb→hex round-trip", hex3_back, "#008000") -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 2: Hex → HSV → RGB → Hex
+----------------------------------------
+{%- set input_hex = "#ff0000" -%}
+{%- set hsv = hex2hsv(input_hex) | from_json -%}
+{%- set rgb_via_hsv = hsv2rgb(hsv) | from_json -%}
+{%- set hex_back = rgb2hex(rgb_via_hsv) | from_json -%}
+{%- set _ = test("Red: hex→hsv→rgb→hex round-trip", hex_back, "#ff0000") -%}
+
+{%- set input_hex2 = "#00ff00" -%}
+{%- set hsv2 = hex2hsv(input_hex2) | from_json -%}
+{%- set rgb_via_hsv2 = hsv2rgb(hsv2) | from_json -%}
+{%- set hex_back2 = rgb2hex(rgb_via_hsv2) | from_json -%}
+{%- set _ = test("Green: hex→hsv→rgb→hex round-trip", hex_back2, "#00ff00") -%}
+
+{%- set input_hex3 = "#ff8000" -%}
+{%- set hsv3 = hex2hsv(input_hex3) | from_json -%}
+{%- set rgb_via_hsv3 = hsv2rgb(hsv3) | from_json -%}
+{%- set hex_back3 = rgb2hex(rgb_via_hsv3) | from_json -%}
+{%- set _ = test("Orange: hex→hsv→rgb→hex round-trip", hex_back3, "#ff8000") -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 3: Hex → HSV → Hex Direct
+----------------------------------------
+{%- set test_hex = "#ff0000" -%}
+{%- set hsv_red = hex2hsv(test_hex) | from_json -%}
+{%- set hex_via_hsv = hsv2hex(hsv_red) | from_json -%}
+{%- set _ = test("Red: hex→hsv→hex direct", hex_via_hsv, "#ff0000") -%}
+
+{%- set test_hex2 = "#0000ff" -%}
+{%- set hsv_blue = hex2hsv(test_hex2) | from_json -%}
+{%- set hex_via_hsv2 = hsv2hex(hsv_blue) | from_json -%}
+{%- set _ = test("Blue: hex→hsv→hex direct", hex_via_hsv2, "#0000ff") -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 4: Complementary → Nearest Name
+----------------------------------------
+{%- set comp_hex = hex_complementary("#ff0000", "complementary") | from_json -%}
+{%- set comp_name = nearest_colour_name(comp_hex[1], "ha") | from_json -%}
+{%- set comp_hex_back = lookup_colour(comp_name, "hex", "ha") | from_json -%}
+{%- set _ = test("Red complement is Cyan/Aqua", comp_name in ["Cyan", "Aqua"], true) -%}
+
+{%- set comp_blue = hex_complementary("#0000ff", "complementary") | from_json -%}
+{%- set comp_blue_name = nearest_colour_name(comp_blue[1], "ha") | from_json -%}
+{%- set _ = test("Blue complement is Yellow", comp_blue_name, "Yellow") -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 5: Find → Lookup Multiple Formats
+----------------------------------------
+{%- set found_name = find_colour("red", "ha") | from_json -%}
+{%- set found_hex = lookup_colour(found_name, "hex", "ha") | from_json -%}
+{%- set found_rgb = lookup_colour(found_name, "rgb", "ha") | from_json -%}
+{%- set found_hsv = lookup_colour(found_name, "hsv", "ha") | from_json -%}
+{%- set _ = test("find(red)→lookup(hex)", found_hex, "#ff0000") -%}
+{%- set _ = test("find(red)→lookup(rgb)", found_rgb, [255, 0, 0]) -%}
+{%- set _ = test("find(red)→lookup(hsv)[0]", found_hsv[0], 0.0) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 6: Average → Validate RGB Math
+----------------------------------------
+{%- set avg1 = average_hex_colour("Red, Blue", "ha") | from_json -%}
+{%- set avg1_rgb = hex2rgb(avg1) | from_json -%}
+{%- set _ = test("Average Red+Blue RGB[0]", avg1_rgb[0], 128) -%}
+{%- set _ = test("Average Red+Blue RGB[1]", avg1_rgb[1], 0) -%}
+{%- set _ = test("Average Red+Blue RGB[2]", avg1_rgb[2], 128) -%}
+
+{%- set avg2 = average_hex_colour("Red, Green, Blue", "ha") | from_json -%}
+{%- set avg2_rgb = hex2rgb(avg2) | from_json -%}
+{%- set _ = test("Average RGB grey-ish", avg2_rgb[0] > avg2_rgb[1], true) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 7: Triadic Harmony Validation
+----------------------------------------
+{%- set triadic = hex_complementary("#ff0000", "triadic") | from_json -%}
+{%- set _ = test("Triadic: count", triadic | length, 3) -%}
+{%- set tri_hsv0 = hex2hsv(triadic[0]) | from_json -%}
+{%- set tri_hsv1 = hex2hsv(triadic[1]) | from_json -%}
+{%- set tri_hsv2 = hex2hsv(triadic[2]) | from_json -%}
+{%- set _ = test("Triadic: hue[0]", tri_hsv0[0], 0.0) -%}
+{%- set _ = test("Triadic: hue[1]", tri_hsv1[0], 120.0) -%}
+{%- set _ = test("Triadic: hue[2]", tri_hsv2[0], 240.0) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 8: Analogous Harmony Validation
+----------------------------------------
+{%- set analogous = hex_complementary("#ff0000", "analogous") | from_json -%}
+{%- set _ = test("Analogous: count", analogous | length, 3) -%}
+{%- set ana_hsv0 = hex2hsv(analogous[0]) | from_json -%}
+{%- set ana_hsv1 = hex2hsv(analogous[1]) | from_json -%}
+{%- set ana_hsv2 = hex2hsv(analogous[2]) | from_json -%}
+{%- set _ = test("Analogous: hue[0]", ana_hsv0[0] | round(0), 330.0) -%}
+{%- set _ = test("Analogous: hue[1]", ana_hsv1[0], 0.0) -%}
+{%- set _ = test("Analogous: hue[2]", ana_hsv2[0] | round(0), 30.0) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 9: Named Complementary Chain
+----------------------------------------
+{%- set named_comp = complementary_colours("Red", "complementary", "ha") | from_json -%}
+{%- set _ = test("Named comp: count", named_comp | length, 2) -%}
+{%- set _ = test("Named comp: first is red", named_comp[0], "#ff0000") -%}
+
+{%- set named_comp2 = complementary_colours_named("Red", "complementary", "ha") | from_json -%}
+{%- set _ = test("Named comp names: count", named_comp2 | length, 2) -%}
+{%- set _ = test("Named comp names: first", named_comp2[0], "Red") -%}
+{%- set _ = test("Named comp names: second", named_comp2[1] in ["Cyan", "Aqua"], true) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 10: Random Dual-Path Test
+----------------------------------------
+{%- set random_name = random_colour("ha") | from_json -%}
+
+{%- set path1_hex = lookup_colour(random_name, "hex", "ha") | from_json -%}
+{%- set path1_rgb = hex2rgb(path1_hex) | from_json -%}
+
+{%- set path2_rgb = lookup_colour(random_name, "rgb", "ha") | from_json -%}
+
+{%- set _ = test("Random dual-path RGB", path1_rgb, path2_rgb) -%}
+
+{%- set random_name2 = random_colour("ha") | from_json -%}
+
+{%- set path1_hex2 = lookup_colour(random_name2, "hex", "ha") | from_json -%}
+{%- set path1_hsv = hex2hsv(path1_hex2) | from_json -%}
+
+{%- set path2_hsv = lookup_colour(random_name2, "hsv", "ha") | from_json -%}
+
+{%- set _ = test("Random dual-path HSV", path1_hsv, path2_hsv) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 11: Multiple Random Round-Trip
+----------------------------------------
+{%- set random3 = random_colours(3, "ha") | from_json -%}
+
+{%- for rname in random3 -%}
+  {%- set r_hex = lookup_colour(rname, "hex", "ha") | from_json -%}
+  {%- set r_hsv = hex2hsv(r_hex) | from_json -%}
+  {%- set r_hex_back = hsv2hex(r_hsv) | from_json -%}
+  {%- set _ = test("Random " ~ rname ~ " round-trip", r_hex_back, r_hex) -%}
+{%- endfor -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 12: Case Insensitivity Chain
+----------------------------------------
+{%- set lower = find_colour("ferrari red", "f1") | from_json -%}
+{%- set upper = find_colour("FERRARI RED", "f1") | from_json -%}
+{%- set mixed = find_colour("Ferrari Red", "f1") | from_json -%}
+{%- set _ = test("Case: lowercase→find", lower, "Ferrari Red") -%}
+{%- set _ = test("Case: uppercase→find", upper, "Ferrari Red") -%}
+{%- set _ = test("Case: mixed→find", mixed, "Ferrari Red") -%}
+
+{%- set hex_lower = lookup_colour(lower, "hex", "f1") | from_json -%}
+{%- set hex_upper = lookup_colour(upper, "hex", "f1") | from_json -%}
+{%- set hex_mixed = lookup_colour(mixed, "hex", "f1") | from_json -%}
+{%- set _ = test("Case: all resolve to same hex", hex_lower == hex_upper == hex_mixed, true) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 13: Complementary Symmetry
+----------------------------------------
+{%- set orig = "#ff0000" -%}
+{%- set comp1 = hex_complementary(orig, "complementary") | from_json -%}
+{%- set comp2 = hex_complementary(comp1[1], "complementary") | from_json -%}
+{%- set _ = test("Complementary symmetry", comp2[1], orig) -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 14: Lookup Multiple Colours
+----------------------------------------
+{%- set multi_hex = lookup_colours("Red, Green, Blue", "hex", "ha") | from_json -%}
+{%- set _ = test("lookup_colours hex: count", multi_hex | length, 3) -%}
+{%- set _ = test("lookup_colours hex[0]", multi_hex[0], "#ff0000") -%}
+
+{%- set nearest_ns = namespace(names=[]) -%}
+{%- for h in multi_hex -%}
+  {%- set n = nearest_colour_name(h, "ha") | from_json -%}
+  {%- set nearest_ns.names = nearest_ns.names + [n] -%}
+{%- endfor -%}
+{%- set _ = test("Hex→nearest: Red", nearest_ns.names[0], "Red") -%}
+{%- set _ = test("Hex→nearest: Green", nearest_ns.names[1], "Green") -%}
+{%- set _ = test("Hex→nearest: Blue", nearest_ns.names[2], "Blue") -%}
+
+{{- "" }}
+----------------------------------------
+WORKFLOW 15: HSV Hue Rotation
+----------------------------------------
+{%- set start_hsv = [0, 100, 100] -%}
+{%- set rot1 = [(start_hsv[0] + 120) % 360, start_hsv[1], start_hsv[2]] -%}
+{%- set rot2 = [(rot1[0] + 120) % 360, rot1[1], rot1[2]] -%}
+{%- set rot3 = [(rot2[0] + 120) % 360, rot2[1], rot2[2]] -%}
+{%- set _ = test("HSV hue rotation 360°", rot3[0], 0.0) -%}
+
+{%- set hex_start = hsv2hex(start_hsv) | from_json -%}
+{%- set hex_rot1 = hsv2hex(rot1) | from_json -%}
+{%- set hex_rot2 = hsv2hex(rot2) | from_json -%}
+{%- set hex_rot3 = hsv2hex(rot3) | from_json -%}
+{%- set _ = test("Hex after 360° rotation", hex_rot3, hex_start) -%}
+
+========================================
+FINAL SUMMARY
+========================================
+
+Total Tests: {{ results.passed + results.failed }}
+Passed: {{ results.passed }}
+Failed: {{ results.failed }}
+Success Rate: {{ "%.1f" | format((results.passed / (results.passed + results.failed) * 100)) }}%
+
+{%- if results.failed > 0 %}
+
+❌ FAILED TESTS:
+{%- for t in results.tests %}
+{%- if t.status == "FAIL" %}
+
+Test: {{ t.name }}
+  Expected: {{ t.expected }}
+  Actual:   {{ t.actual }}
+{%- endif %}
+{%- endfor %}
+
+⚠️ SOME TESTS FAILED - Review colour_map.jinja
+{%- else %}
+
+✅ ALL TESTS PASSED!
+
+Complete validation successful:
+  ✓ Basic functionality working
+  ✓ Round-trip conversions accurate
+  ✓ Complementary colour algorithms correct
+  ✓ Harmony calculations (triadic, analogous, etc)
+  ✓ Dual-path consistency verified
+  ✓ Case insensitivity throughout
+  ✓ Random colour processing
+  ✓ Nearest colour matching
+  ✓ Average colour calculations
+  ✓ HSV mathematics validated
+
+colour_map.jinja is production-ready!
+{%- endif %}
+
+{{- "" }}
+========================================
+MACRO INVENTORY
+========================================
+
+{%- set all_macros = [
+  random_colour,
+  random_colours,
+  sunset_colour,
+  lookup_colour,
+  lookup_colours,
+  find_colour,
+  average_hex_colour,
+  nearest_colour_name,
+  hex_complementary,
+  hex_complementary_named,
+  complementary_colours,
+  complementary_colours_named,
+  hex2rgb,
+  hex2hsv,
+  hex2hsl,
+  hex2hs,
+  hex2h,
+  hex2xyb,
+  hsv2rgb,
+  hsv2hex,
+  rgb2hex
+] -%}
+
+Total Macros Tested: {{ all_macros | length }}
+
+Macros Available:
+{%- for macro in all_macros | sort(attribute='name') %}
+  ✓ {{ macro.name }}
+{%- endfor %}
+
+========================================
