@@ -419,12 +419,12 @@ from 'colours.jinja' import
   {%- if s.startswith('#') -%}{%- set s = s[1:] -%}{%- endif -%}
   {%- set s = s[0:6] -%}
 
-  {%- set rgb = hex2rgb('#' ~ s) | from_json -%}
+  {%- set rgb = hex2rgb(s) | from_json -%}
   {%- set r = rgb[0] -%}{%- set g = rgb[1] -%}{%- set b = rgb[2] -%}
 
   {%- set ns = namespace(best_tag=None, best_d=999999999) -%}
   {%- for tag in colour_map.keys() | list -%}
-    {%- set prgb = hex2rgb('#' ~ (colour_map[tag]|lower)) | from_json -%}
+    {%- set prgb = hex2rgb(colour_map[tag]|lower) | from_json -%}
     {%- set d = (r-prgb[0])**2 + (g-prgb[1])**2 + (b-prgb[2])**2 -%}
     {%- if d < ns.best_d -%}
       {%- set ns.best_d = d -%}
