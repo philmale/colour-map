@@ -92,6 +92,7 @@ from 'colour_map.jinja' import
 
 {#-
  # Lookup a random colour that is not too red or white
+ # or too dark.
  # Handy for outside light colour settings...
  #
  # Parameters:
@@ -104,24 +105,30 @@ from 'colour_map.jinja' import
  #   {{ sunset_colour() | from_json }}
  #   Returns: "Forest Green"
 -#}
-{%- macro sunset_colour(map) -%}
+{%- macro sunset_colour(map="lamp") -%}
   {%- set colour_map = colours[map] -%}
   {%- set keys = colour_map.keys() | list -%}
   {%- set max_tries = keys | count -%}
   {%- set candidate = namespace(c = "Forest Green") -%}
+
   {%- for i in range(max_tries) -%}
     {%- set picked = keys | random -%}
-    {%- set (h,s,v) = hex2hsv(colour_map[picked]) | from_json -%}
-    {# Red / pink-red range #}
+    {%- set (h, s, l) = hex2hsl(colour_map[picked]) | from_json -%}
+
     {%- set is_red = h > 340 or h < 15 -%}
-    {# White, grey, cream, linen, ivory, very pale colours #}
     {%- set is_boring_white = s < 12 -%}
-    {%- set is_pale_neutral = s < 30 and v > 75 -%}
-    {%- if not is_red and not is_boring_white and not is_pale_neutral -%}
+    {%- set is_pale_neutral = s < 30 and l > 75 -%}
+    {%- set is_too_dark = l < 25 -%}
+
+    {%- if not is_red
+          and not is_boring_white
+          and not is_pale_neutral
+          and not is_too_dark -%}
       {%- set candidate.c = picked -%}
       {%- break -%}
     {%- endif -%}
   {%- endfor -%}
+
   {{ candidate.c | to_json }}
 {%- endmacro -%}
 

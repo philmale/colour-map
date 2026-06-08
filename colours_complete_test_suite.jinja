@@ -171,16 +171,13 @@ TEST GROUP: Random Functions
 
 {%- set sc = sunset_colour("lamp") | from_json -%}
 {%- set _ = test("sunset_colour: returns string", sc, None, "not_none") -%}
-{%- set sc_hsv = lookup_colour(sc, "hsv", "lamp") | from_json -%}
-{%- set sc_h = sc_hsv[0] -%}
-{%- set sc_s = sc_hsv[1] -%}
-{%- set sc_v = sc_hsv[2] -%}
-{%- set sc_is_red = sc_h > 340 or sc_h < 15 -%}
-{%- set sc_is_boring_white = sc_s < 12 -%}
-{%- set sc_is_pale_neutral = sc_s < 30 and sc_v > 75 -%}
-{%- set _ = test("sunset_colour: not red", not sc_is_red, true) -%}
-{%- set _ = test("sunset_colour: not boring white/grey", not sc_is_boring_white, true) -%}
-{%- set _ = test("sunset_colour: not pale neutral", not sc_is_pale_neutral, true) -%}
+{%- set sc_hsl = lookup_colour(sc, "hsl", "lamp") | from_json -%}
+{%- set sc_h = sc_hsl[0] -%}
+{%- set sc_s = sc_hsl[1] -%}
+{%- set sc_l = sc_hsl[2] -%}
+{%- set _ = test("sunset_colour: not red", not (sc_h > 340 or sc_h < 15), true) -%}
+{%- set _ = test("sunset_colour: not white-ish", not (sc_s < 12 or (sc_s < 30 and sc_l > 75)), true) -%}
+{%- set _ = test("sunset_colour: not too dark", sc_l >= 25, true) -%}
 
 {{- "" }}
 ----------------------------------------
