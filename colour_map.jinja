@@ -99,7 +99,7 @@ from 'colour_map.jinja' import
  #         Options: "lamp", "f1", "ha"
  # Returns:
  #   JSON format string name of the colour selected.
- # 
+ #
  # Examples:
  #   {{ sunset_colour() | from_json }}
  #   Returns: "Forest Green"
@@ -108,13 +108,17 @@ from 'colour_map.jinja' import
   {%- set colour_map = colours[map] -%}
   {%- set keys = colour_map.keys() | list -%}
   {%- set max_tries = keys | count -%}
-  {%- set candidate = namespace(c = "") -%}
+  {%- set candidate = namespace(c = "Forest Green") -%}
   {%- for i in range(max_tries) -%}
-    {%- set candidate.c = keys | random -%}
-    {%- set (h,s) = hex2hs(colour_map[candidate.c]) | from_json -%}
-    {%- set is_white = s < 5 -%}
-    {%- set is_red = h > 350 or h < 10 -%}
-    {%- if not is_white and not is_red -%}
+    {%- set picked = keys | random -%}
+    {%- set (h,s,v) = hex2hsv(colour_map[picked]) | from_json -%}
+    {# Red / pink-red range #}
+    {%- set is_red = h > 340 or h < 15 -%}
+    {# White, grey, cream, linen, ivory, very pale colours #}
+    {%- set is_boring_white = s < 12 -%}
+    {%- set is_pale_neutral = s < 30 and v > 75 -%}
+    {%- if not is_red and not is_boring_white and not is_pale_neutral -%}
+      {%- set candidate.c = picked -%}
       {%- break -%}
     {%- endif -%}
   {%- endfor -%}

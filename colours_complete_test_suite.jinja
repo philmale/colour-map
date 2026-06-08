@@ -171,11 +171,16 @@ TEST GROUP: Random Functions
 
 {%- set sc = sunset_colour("lamp") | from_json -%}
 {%- set _ = test("sunset_colour: returns string", sc, None, "not_none") -%}
-{%- set sc_hs = lookup_colour(sc, "hs", "lamp") | from_json -%}
-{%- set sc_h = sc_hs[0] -%}
-{%- set sc_s = sc_hs[1] -%}
-{%- set _ = test("sunset_colour: not white (S>=5)", sc_s >= 5, true) -%}
-{%- set _ = test("sunset_colour: not red (H)", not (sc_h > 350 or sc_h < 10), true) -%}
+{%- set sc_hsv = lookup_colour(sc, "hsv", "lamp") | from_json -%}
+{%- set sc_h = sc_hsv[0] -%}
+{%- set sc_s = sc_hsv[1] -%}
+{%- set sc_v = sc_hsv[2] -%}
+{%- set sc_is_red = sc_h > 340 or sc_h < 15 -%}
+{%- set sc_is_boring_white = sc_s < 12 -%}
+{%- set sc_is_pale_neutral = sc_s < 30 and sc_v > 75 -%}
+{%- set _ = test("sunset_colour: not red", not sc_is_red, true) -%}
+{%- set _ = test("sunset_colour: not boring white/grey", not sc_is_boring_white, true) -%}
+{%- set _ = test("sunset_colour: not pale neutral", not sc_is_pale_neutral, true) -%}
 
 {{- "" }}
 ----------------------------------------
@@ -248,6 +253,7 @@ TEST GROUP: Edge Cases
 {%- set sunset = lookup_colour("sunset_safe", "name", "lamp") | from_json -%}
 {%- set _ = test("lookup_colour: sunset_safe", sunset, None, "not_none") -%}
 
+{{- "" }}
 ========================================
 PART 2: INTEGRATION WORKFLOW TESTS
 ========================================
@@ -481,6 +487,7 @@ WORKFLOW 15: HSV Hue Rotation
 {%- set hex_rot3 = hsv2hex(rot3) | from_json -%}
 {%- set _ = test("Hex after 360° rotation", hex_rot3, hex_start) -%}
 
+{{- "" }}
 ========================================
 FINAL SUMMARY
 ========================================
